@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
+from agent_network import TextProcessingNetwork
 
 # Load environment variables
 load_dotenv()
@@ -60,15 +61,22 @@ def initialize_agents():
     
     return summarizer_process, translator_process
 
-# Global variables to store agent processes
+# Global variables to store agent processes and network
 summarizer_process = None
 translator_process = None
+network = None
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize agents when the FastAPI application starts."""
-    global summarizer_process, translator_process
+    global summarizer_process, translator_process, network
     summarizer_process, translator_process = initialize_agents()
+    network = TextProcessingNetwork()
+    
+    # List available agents
+    print("\nAvailable Agents:")
+    for agent in network.list_agents():
+        print(f"- {agent.get('name', 'Unnamed')}: {agent.get('description', 'No description')}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -83,20 +91,15 @@ async def shutdown_event():
 async def ask_query(request: QueryRequest):
     """Endpoint to process queries through the agent network."""
     try:
-        # Run the agent network with the query
-        network_process = subprocess.Popen([sys.executable, "agent_network.py"],
-                                         stdin=subprocess.PIPE,
-                                         stdout=subprocess.PIPE,
-                                         stderr=subprocess.PIPE,
-                                         text=True)
-        
-        # Send the query to the process
-        output, error = network_process.communicate(input=request.query)
-        
-        if error:
-            raise HTTPException(status_code=500, detail=f"Error processing query: {error}")
-        
-        return {"response": output.strip()}
+        if not network:
+            raise HTTPException(status_code=500, detail="Agent network not initialized")
+            
+        result = await network.process_text(request.query)
+        return {
+            "agent": result["agent"],
+            "confidence": result["confidence"],
+            "response": result["result"]
+        }
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
