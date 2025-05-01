@@ -73,17 +73,26 @@ class SummarizerAgent(A2AServer):
         if not text:
             task.status = TaskStatus(
                 state=TaskState.INPUT_REQUIRED,
-                message={"role": "agent", "content": {"type": "text", 
-                         "text": "Please provide text content to summarize."}}
+                message={
+                    "role": "agent",
+                    "content": {
+                        "dataType": "data",
+                        "message": "Please provide text content to summarize."
+                    }
+                }
             )
             return task
         
         # Generate summary
         summary = self.summarize_text(text)
         
-        # Create response
+        # Create response with new format
         task.artifacts = [{
-            "parts": [{"type": "text", "text": summary}]
+            "parts": [{
+                "type": "text",
+                "dataType": "data",
+                "message": summary
+            }]
         }]
         task.status = TaskStatus(state=TaskState.COMPLETED)
         

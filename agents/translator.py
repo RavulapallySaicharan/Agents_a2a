@@ -84,17 +84,28 @@ class TranslatorAgent(A2AServer):
         if not text:
             task.status = TaskStatus(
                 state=TaskState.INPUT_REQUIRED,
-                message={"role": "agent", "content": {"type": "text", 
-                         "text": "Please provide text content to translate and a target language."}}
+                message={
+                    "role": "agent",
+                    "content": {
+                        "dataType": "data",
+                        "message": "Please provide text content to translate and a target language."
+                    }
+                }
             )
             return task
         
         # Generate translation
         translation = self.translate_text(text, target_language)
+
+        print(f"Translation: {translation}")
         
-        # Create response
+        # Create response with new format
         task.artifacts = [{
-            "parts": [{"type": "text", "text": translation}]
+            "parts": [{
+                "type": "text",
+                "dataType": "data",
+                "message": translation
+            }]
         }]
         task.status = TaskStatus(state=TaskState.COMPLETED)
         

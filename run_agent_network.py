@@ -21,14 +21,14 @@ from fastapi import APIRouter
 text_processing_router = APIRouter(prefix="/text_processing_agent", tags=["Text Processing"])
 
 class QueryRequest(BaseModel):
-    query: str
-    session_id: UUID
+    userInput: str
+    sessionID: UUID
 
 class ConversationEntry(BaseModel):
     timestamp: datetime
-    query: str
+    userInput: str
     response: dict
-    agent_type: str  # Added to identify which agent handled the request
+    agentType: str  # Added to identify which agent handled the request
 
 # Store conversation history
 conversation_history: Dict[UUID, List[ConversationEntry]] = {}
@@ -112,26 +112,26 @@ async def ask_query(request: QueryRequest):
             raise HTTPException(status_code=500, detail="Agent network not initialized")
         
         # Process the query
-        result = await network.process_text(request.query)
+        result = await network.process_text(request.userInput)
         
         # Store the conversation
-        if request.session_id not in conversation_history:
-            conversation_history[request.session_id] = []
+        if request.sessionID not in conversation_history:
+            conversation_history[request.sessionID] = []
         
-        conversation_history[request.session_id].append(
+        conversation_history[request.sessionID].append(
             ConversationEntry(
                 timestamp=datetime.utcnow(),
-                query=request.query,
+                userInput=request.userInput,
                 response=result,
-                agent_type="text_processing"  # Identify this as a text processing agent interaction
+                agentType="text_processing"  # Identify this as a text processing agent interaction
             )
         )
         
         return {
-            "session_id": request.session_id,
+            "session_id": request.sessionID,
             "agent": result["agent"],
             "confidence": result["confidence"],
-            "response": result["result"]
+            "response": result["response"]
         }
     
     except Exception as e:

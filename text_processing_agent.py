@@ -68,10 +68,23 @@ class TextProcessingAgent:
         # Send the message to the agent and get the response
         response = agent.ask(message)
         
+        # Format the response according to the new structure
+        formatted_response = {
+            "dataType": "data",  # Default to data type
+            "message": response
+        }
+        
+        # If the response is a list, it might be a table or buttons
+        if isinstance(response, list):
+            if all(isinstance(item, (dict, list)) for item in response):
+                formatted_response["dataType"] = "table"
+            else:
+                formatted_response["dataType"] = "buttons"
+        
         return {
             "agent": agent_name,
             "confidence": confidence,
-            "result": response
+            "response": formatted_response
         }
         
     def list_agents(self):
@@ -162,7 +175,7 @@ async def process_user_input(network):
         result = await network.process_text(user_input)
         print(f"\nQuery: {user_input}")
         print(f"Routed to: {result['agent']} (confidence: {result['confidence']:.2f})")
-        print(f"Response: {result['result']}")
+        print(f"Response: {result['response']['message']}")
     except Exception as e:
         print(f"Error processing input: {str(e)}")
     
