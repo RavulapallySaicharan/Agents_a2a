@@ -1,3 +1,4 @@
-python-a2a
-openai
-python-dotenv 
+fastapi>=0.68.0
+uvicorn>=0.15.0
+python-dotenv>=0.19.0
+pydantic>=1.8.0 

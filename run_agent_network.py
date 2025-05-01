@@ -3,9 +3,17 @@ import subprocess
 import sys
 import time
 from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import uvicorn
 
 # Load environment variables
 load_dotenv()
+
+app = FastAPI(title="Agent Network API", description="API for interacting with the agent network")
+
+class QueryRequest(BaseModel):
+    query: str
 
 def start_agent(agent_file, name):
     """Start an agent in a new process."""
@@ -20,8 +28,8 @@ def start_agent(agent_file, name):
         print(f"Error starting {name} Agent: {str(e)}")
         return None
 
-def main():
-    """Main function to start the agent network."""
+def initialize_agents():
+    """Initialize the agent network."""
     # Check if either OpenAI API key or Azure OpenAI credentials are set
     has_openai = bool(os.getenv("OPENAI_API_KEY"))
     has_azure = (bool(os.getenv("AZURE_OPENAI_API_KEY")) and 
@@ -29,14 +37,7 @@ def main():
                 bool(os.getenv("AZURE_OPENAI_API_VERSION")))
     
     if not (has_openai or has_azure):
-        print("Error: No valid API credentials found.")
-        print("Please create a .env file with either:")
-        print("1. OPENAI_API_KEY for standard OpenAI usage, or")
-        print("2. All of the following for Azure OpenAI:")
-        print("   - AZURE_OPENAI_API_KEY")
-        print("   - AZURE_OPENAI_ENDPOINT")
-        print("   - AZURE_OPENAI_API_VERSION")
-        sys.exit(1)
+        raise HTTPException(status_code=500, detail="No valid API credentials found")
     
     if has_openai:
         print("Using OpenAI credentials")
@@ -57,32 +58,48 @@ def main():
     print("Waiting for agents to start up...")
     time.sleep(3)
     
-    # Test the agent network
-    print("\nStarting Agent Network for testing...")
+    return summarizer_process, translator_process
+
+# Global variables to store agent processes
+summarizer_process = None
+translator_process = None
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize agents when the FastAPI application starts."""
+    global summarizer_process, translator_process
+    summarizer_process, translator_process = initialize_agents()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up processes when the FastAPI application shuts down."""
+    if summarizer_process:
+        summarizer_process.terminate()
+    if translator_process:
+        translator_process.terminate()
+    print("All processes terminated.")
+
+@app.post("/ask")
+async def ask_query(request: QueryRequest):
+    """Endpoint to process queries through the agent network."""
     try:
-        # Run the agent network test
+        # Run the agent network with the query
         network_process = subprocess.Popen([sys.executable, "agent_network.py"],
-                                          stdout=subprocess.PIPE,
-                                          stderr=subprocess.PIPE,
-                                          text=True)
+                                         stdin=subprocess.PIPE,
+                                         stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE,
+                                         text=True)
         
-        # Display the output in real-time
-        for line in network_process.stdout:
-            print(line.strip())
+        # Send the query to the process
+        output, error = network_process.communicate(input=request.query)
         
-        # Wait for completion
-        network_process.wait()
+        if error:
+            raise HTTPException(status_code=500, detail=f"Error processing query: {error}")
         
-    except KeyboardInterrupt:
-        print("\nStopping all processes...")
-    finally:
-        # Clean up processes
-        if summarizer_process:
-            summarizer_process.terminate()
-        if translator_process:
-            translator_process.terminate()
-        
-        print("All processes terminated.")
+        return {"response": output.strip()}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    main() 
+    uvicorn.run(app, host="0.0.0.0", port=8000) 
