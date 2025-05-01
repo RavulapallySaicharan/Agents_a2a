@@ -7,14 +7,30 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
 from agent_network import TextProcessingNetwork
+from uuid import UUID, uuid4
+from typing import Dict, List
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
 
 app = FastAPI(title="Agent Network API", description="API for interacting with the agent network")
 
+# Create a router for text processing agent
+from fastapi import APIRouter
+text_processing_router = APIRouter(prefix="/text_processing_agent", tags=["Text Processing"])
+
 class QueryRequest(BaseModel):
     query: str
+    session_id: UUID
+
+class ConversationEntry(BaseModel):
+    timestamp: datetime
+    query: str
+    response: dict
+
+# Store conversation history
+conversation_history: Dict[UUID, List[ConversationEntry]] = {}
 
 def start_agent(agent_file, name):
     """Start an agent in a new process."""
@@ -87,15 +103,30 @@ async def shutdown_event():
         translator_process.terminate()
     print("All processes terminated.")
 
-@app.post("/ask")
+@text_processing_router.post("/ask")
 async def ask_query(request: QueryRequest):
     """Endpoint to process queries through the agent network."""
     try:
         if not network:
             raise HTTPException(status_code=500, detail="Agent network not initialized")
-            
+        
+        # Process the query
         result = await network.process_text(request.query)
+        
+        # Store the conversation
+        if request.session_id not in conversation_history:
+            conversation_history[request.session_id] = []
+        
+        conversation_history[request.session_id].append(
+            ConversationEntry(
+                timestamp=datetime.utcnow(),
+                query=request.query,
+                response=result
+            )
+        )
+        
         return {
+            "session_id": request.session_id,
             "agent": result["agent"],
             "confidence": result["confidence"],
             "response": result["result"]
@@ -103,6 +134,20 @@ async def ask_query(request: QueryRequest):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@text_processing_router.get("/history/{session_id}")
+async def get_conversation_history(session_id: UUID):
+    """Get conversation history for a specific session."""
+    if session_id not in conversation_history:
+        return {"session_id": session_id, "history": []}
+    
+    return {
+        "session_id": session_id,
+        "history": conversation_history[session_id]
+    }
+
+# Include the router in the main app
+app.include_router(text_processing_router)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000) 
