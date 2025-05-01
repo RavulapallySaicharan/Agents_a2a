@@ -66,17 +66,27 @@ class TextProcessingAgent:
         )
         
         # Send the message to the agent and get the response
-        response = agent.ask(message)
+        response = agent.ask(message)  # Removed await since ask() is not async
+        
+        # Extract the message from the response
+        message_text = ""
+        if hasattr(response, 'artifacts') and response.artifacts:
+            for artifact in response.artifacts:
+                if 'parts' in artifact:
+                    for part in artifact['parts']:
+                        if part.get('type') == 'text':
+                            message_text = part.get('message', '')
+                            break
         
         # Format the response according to the new structure
         formatted_response = {
             "dataType": "data",  # Default to data type
-            "message": response
+            "message": message_text
         }
         
         # If the response is a list, it might be a table or buttons
-        if isinstance(response, list):
-            if all(isinstance(item, (dict, list)) for item in response):
+        if isinstance(message_text, list):
+            if all(isinstance(item, (dict, list)) for item in message_text):
                 formatted_response["dataType"] = "table"
             else:
                 formatted_response["dataType"] = "buttons"

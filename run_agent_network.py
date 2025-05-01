@@ -13,11 +13,20 @@ from uuid import UUID, uuid4
 from typing import Dict, List, Optional
 from datetime import datetime
 import pandas as pd
-
+from fastapi.middleware.cors import CORSMiddleware
 # Load environment variables
 load_dotenv()
 
 app = FastAPI(title="Agent Network API", description="API for interacting with the agent network")
+
+# add cors for all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Create routers for different agent types
 from fastapi import APIRouter
