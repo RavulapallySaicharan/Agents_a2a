@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from model import QueryRequest, DataFrameRequest, Text2SQLRequest, ConversationEntry, AgentResponse
 import asyncio
 from pathlib import Path
+from temp_storage.runnable_config import SessionConfig
 
 # Load environment variables
 load_dotenv()
@@ -84,6 +85,7 @@ class AgentNetworkManager:
             'text2sql': None
         }
         self.conversation_history: Dict[UUID, List[ConversationEntry]] = {}
+        self.session_config = SessionConfig()  # Initialize session configuration
         self._validate_credentials()
         self._set_default_ports()
 
@@ -170,17 +172,22 @@ class AgentNetworkManager:
                     print(f"- {agent.get('name', 'Unnamed')}: {agent.get('description', 'No description')}")
 
     def cleanup(self) -> None:
-        """Terminate all agent processes."""
+        """Terminate all agent processes and clean up sessions."""
         for process in self.processes.values():
             if process:
                 process.terminate()
-        print("All processes terminated.")
+        self.session_config.cleanup_old_sessions()
+        print("All processes terminated and sessions cleaned up.")
 
     def add_conversation_entry(self, session_id: UUID, user_input: str, response: dict, agent_type: str) -> None:
-        """Add a new entry to the conversation history."""
+        """Add a new entry to the conversation history and update session context."""
         if session_id not in self.conversation_history:
             self.conversation_history[session_id] = []
         
+        # Create or update session configuration
+        self.session_config.create_session(session_id)
+        
+        # Add conversation entry
         self.conversation_history[session_id].append(
             ConversationEntry(
                 timestamp=datetime.utcnow(),
@@ -189,6 +196,16 @@ class AgentNetworkManager:
                 agentType=agent_type
             )
         )
+        
+        # Update session context
+        self.session_config.update_context(session_id, {
+            "agent_type": agent_type,
+            "current_state": "completed",
+            "metadata": {
+                "last_query": user_input,
+                "last_response": response
+            }
+        })
 
 # Initialize FastAPI app
 app = FastAPI(title="Agent Network API", description="API for interacting with the agent network")
@@ -217,18 +234,20 @@ agent_manager = AgentNetworkManager()
 @app.on_event("startup")
 async def startup_event():
     """Initialize agents when the FastAPI application starts."""
-    # Clean up any existing temporary files
+    # Clean up any existing temporary files and sessions
     storage_manager.cleanup_all()
+    agent_manager.session_config.cleanup_old_sessions()
     # Initialize agents
     agent_manager.initialize_agents()
     # Start periodic cleanup task
     asyncio.create_task(periodic_cleanup())
 
 async def periodic_cleanup():
-    """Periodically clean up old files."""
+    """Periodically clean up old files and sessions."""
     while True:
         await asyncio.sleep(3600)  # Check every hour
         storage_manager.cleanup_old_files()
+        agent_manager.session_config.cleanup_old_sessions()
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -243,8 +262,12 @@ async def ask_query(request: QueryRequest):
         raise HTTPException(status_code=500, detail="Text processing network not initialized")
     
     try:
+        # Create or get session configuration
+        agent_manager.session_config.create_session(request.sessionID)
+        
         result = await agent_manager.networks['text'].process_text(request.userInput)
         agent_manager.add_conversation_entry(request.sessionID, request.userInput, result, "text_processing")
+        
         return AgentResponse(
             session_id=request.sessionID,
             agent=result["agent"],
@@ -261,7 +284,13 @@ async def upload_csv(session_id: UUID, file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Only CSV files are allowed")
     
     try:
+        # Create session configuration
+        agent_manager.session_config.create_session(session_id)
+        
+        # Save file and update session config
         file_path = await storage_manager.save_csv(session_id, file)
+        agent_manager.session_config.add_file_path(session_id, file_path, "csv")
+        
         return JSONResponse(
             content={
                 "message": "File uploaded successfully",
@@ -280,22 +309,25 @@ async def analyze_csv_data(request: DataFrameRequest):
         raise HTTPException(status_code=500, detail="EDA network not initialized")
     
     try:
-        # If dataframe is provided directly, use it
+        # Create or get session configuration
+        agent_manager.session_config.create_session(request.sessionID)
+        
+        # Get DataFrame
         if request.dataframe:
             df = pd.DataFrame.from_dict(request.dataframe)
+            agent_manager.session_config.add_dataframe(request.sessionID, "current_df", df)
         else:
-            # Try to find the most recent CSV file in the session directory
-            session_dir = storage_manager.get_session_dir(request.sessionID)
-            csv_files = list(session_dir.glob("*.csv"))
-            if not csv_files:
+            session_files = agent_manager.session_config.get_session_files(request.sessionID, "csv")
+            if not session_files:
                 raise HTTPException(status_code=400, detail="No CSV file found for this session")
             
-            # Use the most recent CSV file
-            latest_file = max(csv_files, key=lambda x: x.stat().st_mtime)
-            df = storage_manager.get_csv_data(request.sessionID, latest_file.name)
+            latest_file = session_files[-1]["path"]
+            df = storage_manager.get_csv_data(request.sessionID, latest_file)
         
+        # Process DataFrame
         result = await agent_manager.networks['eda'].process_dataframe(df, request.userInput)
         agent_manager.add_conversation_entry(request.sessionID, request.userInput, result, "eda")
+        
         return AgentResponse(
             session_id=request.sessionID,
             agent=result["agent"],
@@ -315,8 +347,22 @@ async def convert_to_sql(request: Text2SQLRequest):
         raise HTTPException(status_code=400, detail="No database schema provided")
     
     try:
+        # Create or get session configuration
+        agent_manager.session_config.create_session(request.sessionID)
+        
+        # Update session context with schema
+        agent_manager.session_config.update_context(request.sessionID, {
+            "agent_type": "text2sql",
+            "current_state": "processing",
+            "metadata": {
+                "schema": request.schema,
+                "query": request.userInput
+            }
+        })
+        
         result = await agent_manager.networks['text2sql'].process_query(request.userInput, request.schema)
         agent_manager.add_conversation_entry(request.sessionID, request.userInput, result, "text2sql")
+        
         return AgentResponse(
             session_id=request.sessionID,
             agent=result["agent"],
@@ -328,13 +374,14 @@ async def convert_to_sql(request: Text2SQLRequest):
 
 @app.get("/history/{session_id}")
 async def get_conversation_history(session_id: UUID):
-    """Get conversation history for a specific session across all agent types."""
-    if session_id not in agent_manager.conversation_history:
-        return {"session_id": session_id, "history": []}
+    """Get conversation history and session context for a specific session."""
+    session_info = agent_manager.session_config.get_session(session_id)
+    history = agent_manager.conversation_history.get(session_id, [])
     
     return {
         "session_id": session_id,
-        "history": agent_manager.conversation_history[session_id]
+        "session_context": session_info,
+        "history": history
     }
 
 # Include the routers in the main app
