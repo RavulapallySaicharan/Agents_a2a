@@ -8,6 +8,7 @@ from pydantic import BaseModel
 import uvicorn
 from text_processing_agent import TextProcessingAgent
 from eda_agent_network import EDAAgentNetwork
+from text2sql_agent_network import Text2SQLAgentNetwork
 from uuid import UUID, uuid4
 from typing import Dict, List, Optional
 from datetime import datetime
