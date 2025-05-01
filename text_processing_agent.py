@@ -27,7 +27,7 @@ def initialize_openai_client():
             print(f"Failed to initialize Azure OpenAI client: {str(azure_error)}")
             raise Exception("Failed to initialize any OpenAI client. Please check your API keys and configurations.")
 
-class TextProcessingNetwork:
+class TextProcessingAgent:
     """A network of text processing agents with intelligent routing."""
     
     def __init__(self):
@@ -171,7 +171,7 @@ async def process_user_input(network):
 
 if __name__ == "__main__":
     # Create the agent network
-    network = TextProcessingNetwork()
+    network = TextProcessingAgent()
     
     # List available agents
     print("\nAvailable Agents:")

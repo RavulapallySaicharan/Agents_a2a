@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
-from agent_network import TextProcessingNetwork
+from text_processing_agent import TextProcessingAgent
 from uuid import UUID, uuid4
 from typing import Dict, List
 from datetime import datetime
@@ -28,6 +28,7 @@ class ConversationEntry(BaseModel):
     timestamp: datetime
     query: str
     response: dict
+    agent_type: str  # Added to identify which agent handled the request
 
 # Store conversation history
 conversation_history: Dict[UUID, List[ConversationEntry]] = {}
@@ -87,7 +88,7 @@ async def startup_event():
     """Initialize agents when the FastAPI application starts."""
     global summarizer_process, translator_process, network
     summarizer_process, translator_process = initialize_agents()
-    network = TextProcessingNetwork()
+    network = TextProcessingAgent()
     
     # List available agents
     print("\nAvailable Agents:")
@@ -121,7 +122,8 @@ async def ask_query(request: QueryRequest):
             ConversationEntry(
                 timestamp=datetime.utcnow(),
                 query=request.query,
-                response=result
+                response=result,
+                agent_type="text_processing"  # Identify this as a text processing agent interaction
             )
         )
         
@@ -135,9 +137,9 @@ async def ask_query(request: QueryRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@text_processing_router.get("/history/{session_id}")
+@app.get("/history/{session_id}")
 async def get_conversation_history(session_id: UUID):
-    """Get conversation history for a specific session."""
+    """Get conversation history for a specific session across all agent types."""
     if session_id not in conversation_history:
         return {"session_id": session_id, "history": []}
     
