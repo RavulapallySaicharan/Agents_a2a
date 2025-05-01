@@ -1,11 +1,13 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import subprocess
 import sys
 import time
+import shutil
 from typing import Dict, List, Optional, Tuple
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.responses import JSONResponse
 import uvicorn
 from text_processing_agent import TextProcessingAgent
 from eda_agent_network import EDAAgentNetwork
@@ -14,9 +16,64 @@ from uuid import UUID
 import pandas as pd
 from fastapi.middleware.cors import CORSMiddleware
 from model import QueryRequest, DataFrameRequest, Text2SQLRequest, ConversationEntry, AgentResponse
+import asyncio
+from pathlib import Path
 
 # Load environment variables
 load_dotenv()
+
+class StorageManager:
+    def __init__(self, base_dir: str = "temp_storage", max_age_hours: int = 4):
+        self.base_dir = Path(base_dir)
+        self.max_age = timedelta(hours=max_age_hours)
+        self._ensure_base_dir()
+        
+    def _ensure_base_dir(self):
+        """Ensure the base directory exists."""
+        self.base_dir.mkdir(exist_ok=True)
+        
+    def get_session_dir(self, session_id: UUID) -> Path:
+        """Get the directory for a specific session."""
+        session_dir = self.base_dir / str(session_id)
+        session_dir.mkdir(exist_ok=True)
+        return session_dir
+        
+    async def save_csv(self, session_id: UUID, file: UploadFile) -> str:
+        """Save an uploaded CSV file to the session directory."""
+        session_dir = self.get_session_dir(session_id)
+        file_path = session_dir / file.filename
+        
+        # Save the file
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+            
+        return str(file_path)
+        
+    def get_csv_data(self, session_id: UUID, filename: str) -> pd.DataFrame:
+        """Read a CSV file from the session directory."""
+        file_path = self.get_session_dir(session_id) / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        return pd.read_csv(file_path)
+        
+    def cleanup_old_files(self):
+        """Remove files older than max_age."""
+        current_time = datetime.now()
+        for session_dir in self.base_dir.iterdir():
+            if not session_dir.is_dir():
+                continue
+                
+            # Check if directory is older than max_age
+            dir_time = datetime.fromtimestamp(session_dir.stat().st_mtime)
+            if current_time - dir_time > self.max_age:
+                shutil.rmtree(session_dir)
+                
+    def cleanup_all(self):
+        """Remove all temporary files."""
+        if self.base_dir.exists():
+            shutil.rmtree(self.base_dir)
+        self._ensure_base_dir()
 
 class AgentNetworkManager:
     def __init__(self):
@@ -151,18 +208,33 @@ text_processing_router = APIRouter(prefix="/text_processing_agent", tags=["Text 
 eda_router = APIRouter(prefix="/eda_agent", tags=["EDA"])
 text2sql_router = APIRouter(prefix="/text2sql_agent", tags=["Text2SQL"])
 
+# Initialize storage manager
+storage_manager = StorageManager()
+
 # Initialize agent manager
 agent_manager = AgentNetworkManager()
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize agents when the FastAPI application starts."""
+    # Clean up any existing temporary files
+    storage_manager.cleanup_all()
+    # Initialize agents
     agent_manager.initialize_agents()
+    # Start periodic cleanup task
+    asyncio.create_task(periodic_cleanup())
+
+async def periodic_cleanup():
+    """Periodically clean up old files."""
+    while True:
+        await asyncio.sleep(3600)  # Check every hour
+        storage_manager.cleanup_old_files()
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Clean up processes when the FastAPI application shuts down."""
     agent_manager.cleanup()
+    storage_manager.cleanup_all()
 
 @text_processing_router.post("/ask", response_model=AgentResponse)
 async def ask_query(request: QueryRequest):
@@ -182,17 +254,46 @@ async def ask_query(request: QueryRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@eda_router.post("/ask", response_model=AgentResponse)
-async def analyze_data(request: DataFrameRequest):
-    """Endpoint to process data analysis queries through the EDA network."""
+@eda_router.post("/upload_csv")
+async def upload_csv(session_id: UUID, file: UploadFile = File(...)):
+    """Upload a CSV file for EDA analysis."""
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="Only CSV files are allowed")
+    
+    try:
+        file_path = await storage_manager.save_csv(session_id, file)
+        return JSONResponse(
+            content={
+                "message": "File uploaded successfully",
+                "session_id": str(session_id),
+                "filename": file.filename,
+                "file_path": file_path
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@eda_router.post("/analyze_csv", response_model=AgentResponse)
+async def analyze_csv_data(request: DataFrameRequest):
+    """Analyze data from an uploaded CSV file."""
     if not agent_manager.networks['eda']:
         raise HTTPException(status_code=500, detail="EDA network not initialized")
     
-    if not request.dataframe:
-        raise HTTPException(status_code=400, detail="No DataFrame provided")
-    
     try:
-        df = pd.DataFrame.from_dict(request.dataframe)
+        # If dataframe is provided directly, use it
+        if request.dataframe:
+            df = pd.DataFrame.from_dict(request.dataframe)
+        else:
+            # Try to find the most recent CSV file in the session directory
+            session_dir = storage_manager.get_session_dir(request.sessionID)
+            csv_files = list(session_dir.glob("*.csv"))
+            if not csv_files:
+                raise HTTPException(status_code=400, detail="No CSV file found for this session")
+            
+            # Use the most recent CSV file
+            latest_file = max(csv_files, key=lambda x: x.stat().st_mtime)
+            df = storage_manager.get_csv_data(request.sessionID, latest_file.name)
+        
         result = await agent_manager.networks['eda'].process_dataframe(df, request.userInput)
         agent_manager.add_conversation_entry(request.sessionID, request.userInput, result, "eda")
         return AgentResponse(
