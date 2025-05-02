@@ -46,7 +46,7 @@ class SummarizerAgent(A2AServer):
         """Summarize the provided text using OpenAI API."""
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt4-omni",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant that summarizes text."},
                     {"role": "user", "content": f"Summarize the following text in a concise manner:\n\n{text}"}

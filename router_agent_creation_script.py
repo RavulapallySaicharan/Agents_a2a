@@ -212,7 +212,7 @@ load_dotenv()
         
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt4-omni",
                 messages=[
                     {{"role": "system", "content": prompt}},
                     {{"role": "user", "content": query}}

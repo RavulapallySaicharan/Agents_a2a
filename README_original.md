@@ -404,7 +404,7 @@ from python_a2a import A2AClient, run_server
 from python_a2a.langchain import to_a2a_server
 
 # Create a LangChain LLM
-llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+llm = ChatOpenAI(model="gpt4-omni", temperature=0)
 
 # Convert LLM to A2A server
 llm_server = to_a2a_server(llm)

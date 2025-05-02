@@ -146,8 +146,5 @@ if __name__ == "__main__":
     # Create and run the server
     agent = GuidelineAgent()
     
-    # For local testing, you can use the run() method
-    # agent.run()
-    
     # For running as a server
     run_server(agent, port=port) 
