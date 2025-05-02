@@ -1,0 +1,30 @@
+{
+    "agent_type": "text_processing",
+    "agents": [
+        {
+            "name": "summarizer",
+            "type": "summarizer",
+            "params": {
+                "model": "gpt-3.5-turbo",
+                "max_tokens": 150
+            }
+        },
+        {
+            "name": "translator",
+            "type": "translator",
+            "params": {
+                "model": "gpt-3.5-turbo",
+                "target_language": "en"
+            }
+        }
+    ],
+    "connections": [
+        {
+            "source": "summarizer",
+            "target": "translator",
+            "params": {
+                "type": "sequential"
+            }
+        }
+    ]
+} 

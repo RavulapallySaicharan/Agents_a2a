@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 import subprocess
 import sys
@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from model import QueryRequest, DataFrameRequest, Text2SQLRequest, ConversationEntry, AgentResponse
 import asyncio
 from pathlib import Path
-from temp_storage.runnable_config import SessionConfig
+from runnable_config import SessionConfig
 import json
 import uuid
 import logging
@@ -227,9 +227,29 @@ class AgentNetworkRunner:
     def _load_config(self):
         """Load the agent network configuration."""
         try:
+            if not os.path.exists(self.config_path):
+                raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
+                
             with open(self.config_path, 'r') as f:
-                self.config = json.load(f)
+                content = f.read().strip()
+                if not content:
+                    raise ValueError(f"Configuration file is empty: {self.config_path}")
+                self.config = json.loads(content)
+                
+            # Validate required fields
+            required_fields = ['agent_type', 'agents', 'connections']
+            missing_fields = [field for field in required_fields if field not in self.config]
+            if missing_fields:
+                raise ValueError(f"Missing required fields in configuration: {', '.join(missing_fields)}")
+                
             logger.info(f"Loaded configuration from {self.config_path}")
+            
+        except FileNotFoundError as e:
+            logger.error(str(e))
+            raise
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in configuration file: {str(e)}")
+            raise ValueError(f"Invalid JSON format in configuration file: {self.config_path}")
         except Exception as e:
             logger.error(f"Failed to load configuration: {str(e)}")
             raise
@@ -255,7 +275,7 @@ class AgentNetworkRunner:
             "current_state": "initialized",
             "metadata": {
                 "config_path": self.config_path,
-                "created_at": datetime.utcnow().isoformat()
+                "created_at": datetime.now(timezone.utc).isoformat()
             }
         })
         
