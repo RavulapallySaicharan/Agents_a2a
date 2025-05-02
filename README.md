@@ -83,6 +83,37 @@ Agents_a2a/
 └── run_agent_network.py
 ```
 
+## Agent Creation and Management
+
+### Guideline Agent Template
+The `guideline_agent.py` serves as a template for creating new agents:
+- Provides a standardized structure for agent implementation
+- Includes placeholders for customization
+- Demonstrates best practices for agent development
+- Features clear documentation and error handling
+
+### Workflow Agent Creation
+The `workflow_agent_creation_script.py` generates workflow-based multi-agent systems:
+- Supports linear, parallel, and mixed workflow patterns
+- Automatically generates agent network setup
+- Handles agent configuration validation
+- Creates workflow orchestration code
+- Example usage:
+  ```python
+  # Linear workflow
+  linear_pattern = "agent1->agent2->agent3"
+  # Mixed workflow with parallel processing
+  mixed_pattern = "agent1->agent2,agent3->agent4"
+  ```
+
+### Router Agent Creation
+The `router_agent_creation_script.py` generates intelligent routing systems:
+- Creates AI-powered routers for multi-agent networks
+- Implements OpenAI-based routing decisions
+- Handles agent discovery and management
+- Provides confidence scoring for routing decisions
+- Features automatic API fallback mechanism
+
 ## Example Queries
 
 ### Text Processing
