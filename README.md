@@ -1,261 +1,129 @@
-# A2A Agent Network for Text Processing
+# A2A Agent Network
 
 A sophisticated multi-agent system that leverages AI to process and transform text through specialized agents. This implementation demonstrates a Python-based A2A (Agent-to-Agent) network with specialized agents and an intelligent router for optimal task distribution.
 
-## Table of Contents
-- [Components](#components)
-- [Features](#features)
-- [Setup Instructions](#setup-instructions)
-- [Project Structure](#project-structure)
-- [Usage](#usage)
-- [How It Works](#how-it-works)
-- [Customization](#customization)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-
 ## Components
 
-### Text Processing Network
-1. **Summarizer Agent**: Specialized in condensing text content using OpenAI's GPT models
-2. **Translator Agent**: Handles multilingual text translation with automatic language detection
+### Core Networks
+1. **Text Processing Network**
+   - Summarizer Agent: Condenses text using GPT models
+   - Translator Agent: Handles multilingual translation
 
-### EDA (Exploratory Data Analysis) Network
-3. **Data Analysis Agent**: Performs exploratory data analysis on input DataFrames
-4. **Data Visualization Agent**: Generates various visualizations from input DataFrames
-5. **Data Wrangling Agent**: Cleans and preprocesses input DataFrames
+2. **EDA (Exploratory Data Analysis) Network**
+   - Data Analysis Agent: Performs EDA on DataFrames
+   - Data Visualization Agent: Generates visualizations
+   - Data Wrangling Agent: Cleans and preprocesses data
 
-### Text2SQL Network
-6. **NLQ Reconstruction Agent**: Refines and reconstructs natural language queries for better SQL generation
-7. **Gating Agent**: Determines if a natural language query is suitable for SQL generation
-8. **Dynamic Few-Shots Agent**: Retrieves relevant few-shot examples for SQL generation
-9. **SQL Generation Agent**: Converts processed queries into SQL using few-shot examples
+3. **Text2SQL Network**
+   - NLQ Reconstruction Agent: Refines natural language queries
+   - Gating Agent: Evaluates query suitability
+   - Dynamic Few-Shots Agent: Retrieves relevant examples
+   - SQL Generation Agent: Converts queries to SQL
 
-### Network Management
-10. **Agent Network Manager**: Orchestrates communication and task distribution between agents
-11. **AI-Powered Router**: Uses natural language understanding to route queries to the most appropriate agent
+4. **Network Management**
+   - Agent Network Manager: Orchestrates communication
+   - AI-Powered Router: Routes queries to appropriate agents
 
 ## Features
 
-- 🤖 Multiple specialized AI agents working in concert
-- 🔄 Automatic API fallback mechanism (OpenAI → Azure OpenAI)
-- 🌐 Language-agnostic translation capabilities
+- 🤖 Multiple specialized AI agents
+- 🔄 Automatic API fallback (OpenAI → Azure OpenAI)
+- 🌐 Language-agnostic translation
 - 📝 Intelligent text summarization
 - 📊 Advanced data analysis and visualization
-- 🔄 Automated data cleaning and preprocessing
 - 💾 Natural language to SQL conversion
-- 🔌 Modular and extensible architecture
-- ⚡ Real-time processing and response
+- 🔌 Modular architecture
 
-## Setup Instructions
+## Quick Start
 
-### Prerequisites
-
-- Python 3.8 or higher
-- OpenAI API key or Azure OpenAI credentials
-- Git (for cloning the repository)
-
-### Installation
-
-1. Clone the repository:
+1. **Setup**
    ```bash
    git clone https://github.com/yourusername/Agents_a2a.git
    cd Agents_a2a
-   ```
-
-2. Create and activate a virtual environment (recommended):
-   ```bash
    python -m venv venv
-   # On Windows
-   .\venv\Scripts\activate
-   # On Unix or MacOS
-   source venv/bin/activate
-   ```
-
-3. Install dependencies:
-   ```bash
+   # Windows: .\venv\Scripts\activate
+   # Unix/MacOS: source venv/bin/activate
    pip install -r requirements.txt
-   ```
-
-4. Configure environment variables:
-   ```bash
    cp env.template .env
    ```
 
-5. Edit `.env` with your API credentials:
-
-   **Standard OpenAI API** (primary):
+2. **Configure Environment**
    ```
+   # Standard OpenAI API (primary)
    OPENAI_API_KEY=your_openai_api_key_here
-   ```
 
-   **Azure OpenAI API** (fallback):
-   ```
+   # Azure OpenAI API (fallback)
    AZURE_OPENAI_API_KEY=your_azure_openai_key_here
    AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com
    AZURE_OPENAI_API_VERSION=2023-05-15
    ```
 
-## Project Structure
+3. **Run the Network**
+   ```bash
+   # Run complete network
+   python run_agent_network.py
 
+   # Run individual networks
+   python networks/text_processing_agent.py
+   python networks/eda_agent_network.py
+   python networks/text2sql_agent_network.py
+   ```
+
+## Project Structure
 ```
 Agents_a2a/
 ├── agents/
 │   ├── text_processing/
-│   │   ├── summarizer.py
-│   │   └── translator.py
 │   ├── eda/
-│   │   ├── data_analysis_agent.py
-│   │   ├── data_visualization_agent.py
-│   │   └── data_wrangling_agent.py
 │   └── text2sql/
-│       ├── nlq_reconstruction_agent.py
-│       ├── gating_agent.py
-│       ├── dynamic_fewshots_agent.py
-│       └── sql_generation_agent.py
 ├── networks/
-│   ├── text_processing_agent.py
-│   ├── eda_agent_network.py
-│   └── text2sql_agent_network.py
 ├── tests/
-│   ├── test_text_processing.py
-│   ├── test_eda.py
-│   └── test_text2sql.py
 ├── .env.template
 ├── requirements.txt
-├── run_agent_network.py
-└── README.md
-```
-
-## Usage
-
-### Running the Complete Network
-
-Start all components with a single command:
-```bash
-python run_agent_network.py
-```
-
-This will:
-- Initialize all agents in their respective networks
-- Start the agent network manager
-- Run sample queries for each network
-
-### Running Individual Networks
-
-#### Text Processing Network
-```bash
-python networks/text_processing_agent.py
-```
-
-#### EDA Network
-```bash
-python networks/eda_agent_network.py
-```
-
-#### Text2SQL Network
-```bash
-python networks/text2sql_agent_network.py
-```
-
-### Running Individual Agents
-
-#### Text Processing Agents
-```bash
-python agents/text_processing/summarizer.py
-python agents/text_processing/translator.py
-```
-
-#### EDA Agents
-```bash
-python agents/eda/data_analysis_agent.py
-python agents/eda/data_visualization_agent.py
-python agents/eda/data_wrangling_agent.py
-```
-
-#### Text2SQL Agents
-```bash
-python agents/text2sql/nlq_reconstruction_agent.py
-python agents/text2sql/gating_agent.py
-python agents/text2sql/dynamic_fewshots_agent.py
-python agents/text2sql/sql_generation_agent.py
-```
-
-### Running Tests
-```bash
-python -m pytest tests/
+└── run_agent_network.py
 ```
 
 ## Example Queries
 
 ### Text Processing
-- Summarization: "Summarize the following paragraph: The industrial revolution began in Britain..."
-- Translation: "Translate this text to French: Hello, how are you today?"
-- Implicit Summarization: "Can you make this shorter? It's a long article about..."
-- Implicit Translation: "Convert this to Spanish: I would like to order a coffee, please."
+- "Summarize the following paragraph: The industrial revolution began in Britain..."
+- "Translate this text to French: Hello, how are you today?"
 
-### EDA (Exploratory Data Analysis)
-- Data Analysis: "Analyze this dataset and provide key statistics"
-- Data Visualization: "Create a bar chart showing sales by region"
-- Data Wrangling: "Clean this dataset by handling missing values and outliers"
+### EDA
+- "Analyze this dataset and provide key statistics"
+- "Create a bar chart showing sales by region"
 
 ### Text2SQL
-- NLQ Reconstruction: "What were the total sales last month?"
-- SQL Generation: "Show me the top 10 customers by revenue"
-- Query Evaluation: "Is this query suitable for SQL generation?"
-- Few-Shot Examples: "Find similar examples for this query"
+- "What were the total sales last month?"
+- "Show me the top 10 customers by revenue"
 
-## How It Works
+## Development
 
-1. **Query Processing Pipeline**:
-   - Query received by the agent network
-   - AI router analyzes query intent
-   - Intelligent routing to appropriate agent
-   - Processing and response generation
-   - Result returned to user
+### Creating New Agents
+Use the `guideline_agent.py` template to create new agents:
+```bash
+python agents/guideline_agent.py
+```
 
-2. **Summarization Process**:
-   - Text analysis for key points
-   - GPT-powered summarization
-   - Quality checks and refinement
-   - Concise output generation
-
-3. **Translation Process**:
-   - Language detection
-   - Context-aware translation
-   - Cultural adaptation
-   - Quality verification
-
-4. **API Fallback System**:
-   - Primary: Standard OpenAI API
-   - Automatic fallback to Azure OpenAI
-   - Seamless transition
-   - Error handling and recovery
-
-## Customization
-
-- **Port Configuration**: Modify ports in `.env`
-- **Model Selection**: Adjust GPT models in agent files
-- **Agent Extension**: Create new agents following the established pattern
-- **API Configuration**: Configure preferred API in `.env`
+### Testing
+```bash
+python -m pytest tests/
+```
 
 ## Troubleshooting
 
-Common issues and solutions:
-
-1. **API Connection Issues**:
+1. **API Issues**
    - Verify API keys in `.env`
    - Check internet connection
    - Ensure API quota availability
 
-2. **Port Conflicts**:
-   - Check for running processes
+2. **Port Conflicts**
+   - Check running processes
    - Modify ports in configuration
-   - Restart the application
 
-3. **Dependency Problems**:
+3. **Dependencies**
    - Update pip: `pip install --upgrade pip`
    - Reinstall requirements: `pip install -r requirements.txt`
-   - Check Python version compatibility
 
 ## Contributing
 
@@ -263,11 +131,4 @@ Common issues and solutions:
 2. Create a feature branch
 3. Make your changes
 4. Run tests
-5. Submit a pull request
-
-## Example Queries
-
-- Summarization: "Summarize the following paragraph: The industrial revolution began in Britain..."
-- Translation: "Translate this text to French: Hello, how are you today?"
-- Implicit Summarization: "Can you make this shorter? It's a long article about..."
-- Implicit Translation: "Convert this to Spanish: I would like to order a coffee, please." 
+5. Submit a pull request 
