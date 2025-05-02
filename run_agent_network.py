@@ -148,8 +148,8 @@ class AgentNetworkManager:
     def initialize_agents(self) -> None:
         """Initialize all agents and their networks."""
         # Start text processing agents
-        self.start_agent("agents/summarizer.py", "Summarizer")
-        self.start_agent("agents/translator.py", "Translator")
+        self.start_agent("agents/summarizer_agent.py", "Summarizer")
+        self.start_agent("agents/translator_agent.py", "Translator")
         
         # Start EDA agents
         self.start_agent("agents/data_analysis_agent.py", "Data Analysis")
