@@ -1,59 +1,115 @@
-from typing import Any, Dict, Optional
-import openai
-from dotenv import load_dotenv
+from python_a2a import A2AServer, skill, agent, TaskStatus, TaskState
 import os
+from dotenv import load_dotenv
+import openai
+import re
 
 # Load environment variables from .env file
 load_dotenv()
 
-class Agent:
-    def __init__(self, model: str = "gpt-3.5-turbo", target_language: str = "en"):
-        self.model = model
-        self.target_language = target_language
-        self._validate_credentials()
-        
-    def _validate_credentials(self):
-        """Validate OpenAI credentials."""
-        if not os.getenv("OPENAI_API_KEY"):
-            raise ValueError("OPENAI_API_KEY not found in environment variables")
-            
-    def is_entry_point(self) -> bool:
-        """Check if this agent is an entry point."""
-        return False
-        
-    def connect(self, target: 'Agent', params: Dict[str, Any] = None) -> None:
-        """Connect this agent to another agent."""
-        self.next_agent = target
-        
-    def process(self, input_data: str) -> Dict[str, Any]:
-        """Process the input text and translate it."""
+@agent(
+    name="Translator Agent",
+    description="Translates text into specified target languages using OpenAI API",
+    version="1.0.0"
+)
+class TranslatorAgent(A2AServer):
+    
+    def __init__(self):
+        super().__init__()
+        self.client = self._initialize_openai_client()
+    
+    def _initialize_openai_client(self):
+        """Initialize OpenAI client with fallback to Azure OpenAI."""
         try:
-            response = openai.ChatCompletion.create(
-                model=self.model,
+            # Try to initialize the default OpenAI client
+            return openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        except Exception as e:
+            print(f"Failed to initialize OpenAI client: {str(e)}")
+            print("Falling back to Azure OpenAI...")
+            
+            # Fall back to Azure OpenAI
+            try:
+                return openai.AzureOpenAI(
+                    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                    api_version=os.getenv("AZURE_OPENAI_API_VERSION")
+                )
+            except Exception as azure_error:
+                print(f"Failed to initialize Azure OpenAI client: {str(azure_error)}")
+                raise Exception("Failed to initialize any OpenAI client. Please check your API keys and configurations.")
+    
+    @skill(
+        name="Translate Text",
+        description="Translate text to a specified target language",
+        tags=["translate", "language", "multilingual"]
+    )
+    def translate_text(self, text, target_language):
+        """Translate the provided text to the target language using OpenAI API."""
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt4-omni",
                 messages=[
-                    {"role": "system", "content": f"You are a helpful assistant that translates text to {self.target_language}."},
-                    {"role": "user", "content": f"Please translate the following text to {self.target_language}: {input_data}"}
+                    {"role": "system", "content": "You are a helpful translator assistant."},
+                    {"role": "user", "content": f"Translate the following text to {target_language}:\n\n{text}"}
                 ]
             )
-            
-            translation = response.choices[0].message.content
-            
-            # If there's a next agent, pass the translation to it
-            if hasattr(self, 'next_agent'):
-                return self.next_agent.process(translation)
-                
-            return {
-                "agent": "translator",
-                "confidence": 1.0,
-                "response": translation
-            }
-            
+            return response.choices[0].message.content
         except Exception as e:
-            return {
-                "agent": "translator",
-                "confidence": 0.0,
-                "response": f"Error translating text: {str(e)}"
-            }
+            return f"Error translating text: {str(e)}"
+    
+    def handle_task(self, task):
+        """Handle incoming task requests for translation."""
+        # Extract text content and target language from message
+        message_data = task.message or {}
+        content = message_data.get("content", {})
+        
+        # Handle different content formats
+        if isinstance(content, dict):
+            text = content.get("text", "")
+        elif isinstance(content, str):
+            text = content
+        else:
+            text = ""
+        
+        # Try to extract target language from the text
+        target_language = "Spanish"  # Default language
+        language_pattern = r"(?:translate|convert)(?:\s+this)?(?:\s+to)?\s+([a-zA-Z]+)"
+        match = re.search(language_pattern, text, re.IGNORECASE)
+        
+        if match:
+            target_language = match.group(1).capitalize()
+            # Remove the instruction part from the text to be translated
+            text = re.sub(language_pattern, "", text, flags=re.IGNORECASE).strip()
+        
+        if not text:
+            task.status = TaskStatus(
+                state=TaskState.INPUT_REQUIRED,
+                message={
+                    "role": "agent",
+                    "content": {
+                        "dataType": "data",
+                        "message": "Please provide text content to translate and a target language."
+                    }
+                }
+            )
+            return task
+        
+        # Generate translation
+        translation = self.translate_text(text, target_language)
+
+        print(f"Translation: {translation}")
+        
+        # Create response with new format
+        task.artifacts = [{
+            "parts": [{
+                "type": "text",
+                "dataType": "data",
+                "message": translation
+            }]
+        }]
+        task.status = TaskStatus(state=TaskState.COMPLETED)
+        
+        return task
 
 
 if __name__ == "__main__":
@@ -63,5 +119,5 @@ if __name__ == "__main__":
     port = int(os.getenv("TRANSLATOR_PORT", 5002))
     
     # Create and run the server
-    agent = Agent()
+    agent = TranslatorAgent()
     run_server(agent, port=port) 
