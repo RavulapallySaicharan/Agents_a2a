@@ -265,9 +265,23 @@ class AgentNetworkRunner:
         for agent in self.config['agents']:
             try:
                 module_name = f"agents.{agent['type']}"
-                agent_module = __import__(module_name, fromlist=['Agent'])
-                agent_modules[agent['name']] = agent_module.Agent
-                logger.info(f"Loaded agent module: {module_name}")
+                # Map agent types to their actual class names
+                class_name_map = {
+                    'summarizer': 'SummarizerAgent',
+                    'translator': 'TranslatorAgent',
+                    'data_analysis': 'DataAnalysisAgent',
+                    'data_visualization': 'DataVisualizationAgent',
+                    'data_wrangling': 'DataWranglingAgent',
+                    'nlq_reconstruction': 'NLQReconstructionAgent',
+                    'gating': 'GatingAgent',
+                    'dynamic_few_shots': 'DynamicFewShotsAgent',
+                    'sql_generation': 'SQLGenerationAgent'
+                }
+                
+                agent_module = __import__(module_name, fromlist=[class_name_map.get(agent['type'], 'Agent')])
+                agent_class_name = class_name_map.get(agent['type'], 'Agent')
+                agent_modules[agent['name']] = getattr(agent_module, agent_class_name)
+                logger.info(f"Loaded agent module: {module_name} with class {agent_class_name}")
             except Exception as e:
                 logger.error(f"Failed to load agent module {agent['type']}: {str(e)}")
                 raise
