@@ -1,0 +1,30 @@
+{
+    "agent_type": "text_processing",
+    "agents": [
+        {
+            "name": "summarizer",
+            "type": "summarizer",
+            "params": {
+                "max_length": 150,
+                "temperature": 0.7
+            }
+        },
+        {
+            "name": "translator",
+            "type": "translator",
+            "params": {
+                "target_language": "en",
+                "temperature": 0.7
+            }
+        }
+    ],
+    "connections": [
+        {
+            "source": "summarizer",
+            "target": "translator",
+            "params": {
+                "priority": 1
+            }
+        }
+    ]
+} 

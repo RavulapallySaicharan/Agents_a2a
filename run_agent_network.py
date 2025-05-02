@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from model import QueryRequest, DataFrameRequest, Text2SQLRequest, ConversationEntry, AgentResponse
 import asyncio
 from pathlib import Path
-from temp_storage.runnable_config import SessionConfig
+from runnable_config import SessionConfig
 import json
 import uuid
 import logging
