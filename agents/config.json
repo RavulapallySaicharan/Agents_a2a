@@ -179,56 +179,6 @@
                     ]
                 }
             ]
-        },
-        {
-            "name": "API Agent",
-            "description": "Processes data through an external API",
-            "version": "1.0.0",
-            "port": 5002,
-            "file": "api_agent.py",
-            "skills": [
-                {
-                    "name": "skill1",
-                    "description": "Skill for skill1",
-                    "tags": [
-                        "api",
-                        "data"
-                    ]
-                },
-                {
-                    "name": "skill2",
-                    "description": "Skill for skill2",
-                    "tags": [
-                        "api",
-                        "data"
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "LLM Agent",
-            "description": "Processes text using LLM",
-            "version": "1.0.0",
-            "port": 5003,
-            "file": "llm_agent.py",
-            "skills": [
-                {
-                    "name": "process",
-                    "description": "Skill for process",
-                    "tags": [
-                        "llm",
-                        "text"
-                    ]
-                },
-                {
-                    "name": "validate",
-                    "description": "Skill for validate",
-                    "tags": [
-                        "llm",
-                        "text"
-                    ]
-                }
-            ]
         }
     ],
     "server_config": {

@@ -1,24 +1,95 @@
 {
-    "agent_type": "text_processing",
-    "agents": [
-        {
-            "name": "summarizer",
-            "type": "summarizer",
-            "params": {}
+    "agent_networks": {
+        "eda_network": {
+            "name": "EDA Network",
+            "agents": [
+                {
+                    "name": "data_analysis",
+                    "type": "data_analysis",
+                    "url": "http://localhost:5003",
+                    "params": {}
+                },
+                {
+                    "name": "data_visualization",
+                    "type": "data_visualization",
+                    "url": "http://localhost:5004",
+                    "params": {}
+                },
+                {
+                    "name": "data_wrangling",
+                    "type": "data_wrangling",
+                    "url": "http://localhost:5005",
+                    "params": {}
+                }
+            ],
+            "connections": [
+                {
+                    "source": "data_analysis",
+                    "target": "data_visualization",
+                    "params": {
+                        "priority": 1
+                    }
+                },
+                {
+                    "source": "data_wrangling",
+                    "target": "data_analysis",
+                    "params": {
+                        "priority": 1
+                    }
+                }
+            ]
         },
-        {
-            "name": "translator",
-            "type": "translator",
-            "params": {}
+        "text2sql_network": {
+            "name": "Text-to-SQL Workflow",
+            "agents": [
+                {
+                    "name": "nlq_reconstruction",
+                    "type": "nlq_reconstruction",
+                    "url": "http://localhost:5007",
+                    "params": {}
+                },
+                {
+                    "name": "gating",
+                    "type": "gating",
+                    "url": "http://localhost:5008",
+                    "params": {}
+                },
+                {
+                    "name": "dynamic_few_shots",
+                    "type": "dynamic_few_shots",
+                    "url": "http://localhost:5009",
+                    "params": {}
+                },
+                {
+                    "name": "sql_generation",
+                    "type": "sql_generation",
+                    "url": "http://localhost:5010",
+                    "params": {}
+                }
+            ],
+            "connections": [
+                {
+                    "source": "nlq_reconstruction",
+                    "target": "gating",
+                    "params": {
+                        "priority": 1
+                    }
+                },
+                {
+                    "source": "gating",
+                    "target": "dynamic_few_shots",
+                    "params": {
+                        "priority": 1
+                    }
+                },
+                {
+                    "source": "dynamic_few_shots",
+                    "target": "sql_generation",
+                    "params": {
+                        "priority": 1
+                    }
+                }
+            ]
         }
-    ],
-    "connections": [
-        {
-            "source": "summarizer",
-            "target": "translator",
-            "params": {
-                "priority": 1
-            }
-        }
-    ]
+    }
 } 
