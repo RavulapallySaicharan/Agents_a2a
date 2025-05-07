@@ -24,11 +24,16 @@ The A2A protocol establishes a standard communication format that enables AI age
 
 ## 📋 What's New in v0.5.X
 
+- **Agent Discovery**: Built-in support for agent registry and discovery with full Google A2A protocol compatibility
 - **LangChain Integration**: Seamless integration with LangChain's tools and agents
 - **Expanded Tool Ecosystem**: Use tools from both LangChain and MCP in any agent
 - **Enhanced Agent Interoperability**: Convert between A2A agents and LangChain agents 
 - **Mixed Workflow Engine**: Build workflows combining both ecosystems
 - **Simplified Agent Development**: Access thousands of pre-built tools instantly
+- **Advanced Streaming Architecture**: Enhanced streaming with Server-Sent Events (SSE), better error handling, and robust fallback mechanisms
+- **Task-Based Streaming**: New `tasks_send_subscribe` method for streaming task updates in real-time
+- **Streaming Chunks API**: Improved chunk processing with the `StreamingChunk` class for structured streaming data
+- **Multi-Endpoint Support**: Automatic discovery and fallback across multiple streaming endpoints
 
 ## 📋 What's New in v0.4.X
 
@@ -43,6 +48,7 @@ The A2A protocol establishes a standard communication format that enables AI age
 ## ✨ Why Choose Python A2A?
 
 - **Complete Implementation**: Fully implements the official A2A specification with zero compromises
+- **Agent Discovery**: Built-in agent registry and discovery for building agent ecosystems
 - **MCP Integration**: First-class support for Model Context Protocol for powerful tool-using agents
 - **Enterprise Ready**: Built for production environments with robust error handling and validation
 - **Framework Agnostic**: Works with any Python framework (Flask, FastAPI, Django, etc.)
@@ -198,51 +204,146 @@ for agent_info in network.list_agents():
     print(f"- {agent_info['name']}: {agent_info['description']}")
 ```
 
-### 3. Stream Responses for Real-time Updates
+### Real-time Streaming
+
+Get real-time responses from agents with comprehensive streaming support:
 
 ```python
 import asyncio
 from python_a2a import StreamingClient, Message, TextContent, MessageRole
-from python_a2a import Task, TaskStatus, TaskState
 
 async def main():
-    # Create a streaming client
     client = StreamingClient("http://localhost:5000")
     
-    # Stream a simple message
+    # Create a message with required role parameter
     message = Message(
-        content=TextContent(text="Write a short story about space exploration"),
+        content=TextContent(text="Tell me about A2A streaming"),
         role=MessageRole.USER
     )
     
-    print("Streaming response:")
-    print("-" * 50)
+    # Stream the response and process chunks in real-time
+    try:
+        async for chunk in client.stream_response(message):
+            # Handle different chunk formats (string or dictionary)
+            if isinstance(chunk, dict):
+                if "content" in chunk:
+                    print(chunk["content"], end="", flush=True)
+                elif "text" in chunk:
+                    print(chunk["text"], end="", flush=True)
+                else:
+                    print(str(chunk), end="", flush=True)
+            else:
+                print(str(chunk), end="", flush=True)
+    except Exception as e:
+        print(f"Streaming error: {e}")
+```
+
+Check out the `examples/streaming/` directory for complete streaming examples:
+
+- **basic_streaming.py**: Minimal streaming implementation (start here!)
+- **01_basic_streaming.py**: Comprehensive introduction to streaming basics
+- **02_advanced_streaming.py**: Advanced streaming with different chunking strategies
+- **03_streaming_llm_integration.py**: Integrating streaming with LLM providers
+- **04_task_based_streaming.py**: Task-based streaming with progress tracking
+- **05_streaming_ui_integration.py**: Streaming UI integration (CLI and web)
+- **06_distributed_streaming.py**: Distributed streaming architecture
+
+### 3. Workflow Engine
+
+The new workflow engine allows you to define complex agent interactions:
+
+```python
+from python_a2a import AgentNetwork, Flow
+import asyncio
+
+async def main():
+    # Set up agent network
+    network = AgentNetwork()
+    network.add("research", "http://localhost:5001")
+    network.add("summarizer", "http://localhost:5002")
+    network.add("factchecker", "http://localhost:5003")
     
-    # Define a callback function to process chunks
-    def print_chunk(chunk):
-        print(chunk, end="", flush=True)
+    # Define a workflow for research report generation
+    flow = Flow(agent_network=network, name="Research Report Workflow")
     
-    # Stream the response with the callback
-    async for chunk in client.stream_response(message, chunk_callback=print_chunk):
-        pass  # Chunks are handled by the callback
+    # First, gather initial research
+    flow.ask("research", "Research the latest developments in {topic}")
     
-    print("\n" + "-" * 50)
+    # Then process the results in parallel
+    parallel_results = (flow.parallel()
+        # Branch 1: Create a summary
+        .ask("summarizer", "Summarize this research: {latest_result}")
+        # Branch 2: Verify key facts
+        .branch()
+        .ask("factchecker", "Verify these key facts: {latest_result}")
+        # End parallel processing and collect results
+        .end_parallel(max_concurrency=2))
     
-    # Alternatively, create and stream a task
-    task = await client.create_task("Explain quantum computing in simple terms")
+    # Extract insights based on verification results
+    flow.execute_function(
+        lambda results, context: f"Summary: {results['1']}\nVerified Facts: {results['2']}",
+        parallel_results
+    )
     
-    print("\nStreaming task response:")
-    print("-" * 50)
+    # Execute the workflow
+    result = await flow.run({
+        "topic": "quantum computing advancements in the last year"
+    })
     
-    # Stream the task execution
-    async for chunk in client.stream_task(task, chunk_callback=lambda c: print(c.get("text", ""), end="", flush=True)):
-        pass
+    print(result)
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### 4. Define Complex Workflows with Multiple Agents
+### 4. AI-Powered Router
+
+Intelligent routing to select the best agent for each query:
+
+```python
+from python_a2a import AgentNetwork, AIAgentRouter, A2AClient
+import asyncio
+
+async def main():
+    # Create a network with specialized agents
+    network = AgentNetwork()
+    network.add("math", "http://localhost:5001")
+    network.add("history", "http://localhost:5002")
+    network.add("science", "http://localhost:5003")
+    network.add("literature", "http://localhost:5004")
+    
+    # Create a router using an LLM for decision making
+    router = AIAgentRouter(
+        llm_client=A2AClient("http://localhost:5000/openai"),
+        agent_network=network
+    )
+    
+    # Sample queries to route
+    queries = [
+        "What is the formula for the area of a circle?",
+        "Who wrote The Great Gatsby?",
+        "When did World War II end?",
+        "How does photosynthesis work?",
+        "What are Newton's laws of motion?"
+    ]
+    
+    # Route each query to the best agent
+    for query in queries:
+        agent_name, confidence = router.route_query(query)
+        agent = network.get_agent(agent_name)
+        
+        print(f"Query: {query}")
+        print(f"Routed to: {agent_name} (confidence: {confidence:.2f})")
+        
+        # Get response from the selected agent
+        response = agent.ask(query)
+        print(f"Response: {response[:100]}...\n")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### 5. Define Complex Workflows with Multiple Agents
 
 ```python
 from python_a2a import AgentNetwork, Flow, AIAgentRouter
@@ -302,26 +403,35 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### 5. Use the Command Line Interface
+### 6. Use the Command Line Interface
 
 ```bash
-# Start an OpenAI-powered agent
-a2a openai --api-key YOUR_API_KEY --model gpt-4 --port 5000
+# Send a message to an agent
+a2a send http://localhost:5000 "What is artificial intelligence?"
 
-# In another terminal, send a message to the agent
-a2a send http://localhost:5000 "Explain quantum computing in simple terms"
+# Stream a response in real-time
+a2a stream http://localhost:5000 "Generate a step-by-step tutorial for making pasta"
 
-# Stream a response with real-time updates
-a2a stream http://localhost:5000 "Write a short story about aliens visiting Earth"
+# Start an OpenAI-powered A2A server
+a2a openai --model gpt-4 --system-prompt "You are a helpful coding assistant"
 
-# Start an MCP server with custom tools
-a2a mcp-serve --name "Calculator MCP" --script calculator_tools.py --port 5001
+# Start an Anthropic-powered A2A server
+a2a anthropic --model claude-3-opus-20240229 --system-prompt "You are a friendly AI teacher"
 
-# Create an agent network
-a2a network --add weather=http://localhost:5001 recommendations=http://localhost:5002 --save network.json
+# Start an MCP server with tools
+a2a mcp-serve --name "Data Analysis MCP" --port 5001 --script analysis_tools.py
+
+# Start an MCP-enabled A2A agent
+a2a mcp-agent --servers data=http://localhost:5001 calc=http://localhost:5002
+
+# Call an MCP tool directly
+a2a mcp-call http://localhost:5001 analyze_csv --params file=data.csv columns=price,date
+
+# Manage agent networks
+a2a network --add weather=http://localhost:5001 travel=http://localhost:5002 --save network.json
 
 # Run a workflow from a script
-a2a workflow --script travel_workflow.py --agents weather=http://localhost:5001 recommendations=http://localhost:5002
+a2a workflow --script research_workflow.py --context initial_data.json
 ```
 
 ## 🔄 LangChain Integration (New in v0.5.X)
@@ -404,7 +514,7 @@ from python_a2a import A2AClient, run_server
 from python_a2a.langchain import to_a2a_server
 
 # Create a LangChain LLM
-llm = ChatOpenAI(model="gpt4-omni", temperature=0)
+llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
 # Convert LLM to A2A server
 llm_server = to_a2a_server(llm)
@@ -518,296 +628,63 @@ agent = network.get_agent("diagnosis")
 response = agent.ask("What are the symptoms of the flu?")
 ```
 
-### Real-time Streaming
-
-Get real-time responses from agents with streaming support:
+### 7. Agent Discovery and Registry
 
 ```python
-import asyncio
-from python_a2a import StreamingClient
+from python_a2a import AgentCard, A2AServer, run_server
+from python_a2a.discovery import AgentRegistry, run_registry, enable_discovery, DiscoveryClient
+import threading
+import time
 
-async def main():
-    client = StreamingClient("http://localhost:5000")
-    
-    # Define a callback to process each chunk as it arrives
-    def handle_chunk(chunk):
-        if isinstance(chunk, str):
-            print(chunk, end="", flush=True)
-        elif isinstance(chunk, dict) and "text" in chunk:
-            print(chunk["text"], end="", flush=True)
-    
-    # Stream a response in real-time
-    print("Generating a story...")
-    async for chunk in client.stream_response(
-        "Write me a short story about a robot that learns to paint",
-        chunk_callback=handle_chunk
-    ):
-        pass  # Processing is done in the callback
-    
-    print("\nDone!")
+# Create a registry server
+registry = AgentRegistry(
+    name="A2A Registry Server",
+    description="Central registry for agent discovery"
+)
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# Run the registry in a background thread
+registry_port = 8000
+thread = threading.Thread(
+    target=lambda: run_registry(registry, host="0.0.0.0", port=registry_port),
+    daemon=True
+)
+thread.start()
+time.sleep(1)  # Let the registry start
+
+# Create a sample agent
+agent_card = AgentCard(
+    name="Weather Agent",
+    description="Provides weather information",
+    url="http://localhost:8001",
+    version="1.0.0",
+    capabilities={
+        "weather_forecasting": True,
+        "google_a2a_compatible": True  # Enable Google A2A compatibility
+    }
+)
+agent = A2AServer(agent_card=agent_card)
+
+# Enable discovery - this registers with the registry
+registry_url = f"http://localhost:{registry_port}"
+discovery_client = enable_discovery(agent, registry_url=registry_url)
+
+# Run the agent in a separate thread
+agent_thread = threading.Thread(
+    target=lambda: run_server(agent, host="0.0.0.0", port=8001),
+    daemon=True
+)
+agent_thread.start()
+time.sleep(1)  # Let the agent start
+
+# Create a discovery client for discovering agents
+client = DiscoveryClient(agent_card=None)  # No agent card needed for discovery only
+client.add_registry(registry_url)
+
+# Discover all agents
+agents = client.discover()
+print(f"Discovered {len(agents)} agents:")
+for agent in agents:
+    print(f"- {agent.name} at {agent.url}")
+    print(f"  Capabilities: {agent.capabilities}")
 ```
 
-### Workflow Engine
-
-The new workflow engine allows you to define complex agent interactions:
-
-```python
-from python_a2a import AgentNetwork, Flow
-import asyncio
-
-async def main():
-    # Set up agent network
-    network = AgentNetwork()
-    network.add("research", "http://localhost:5001")
-    network.add("summarizer", "http://localhost:5002")
-    network.add("factchecker", "http://localhost:5003")
-    
-    # Define a workflow for research report generation
-    flow = Flow(agent_network=network, name="Research Report Workflow")
-    
-    # First, gather initial research
-    flow.ask("research", "Research the latest developments in {topic}")
-    
-    # Then process the results in parallel
-    parallel_results = (flow.parallel()
-        # Branch 1: Create a summary
-        .ask("summarizer", "Summarize this research: {latest_result}")
-        # Branch 2: Verify key facts
-        .branch()
-        .ask("factchecker", "Verify these key facts: {latest_result}")
-        # End parallel processing and collect results
-        .end_parallel(max_concurrency=2))
-    
-    # Extract insights based on verification results
-    flow.execute_function(
-        lambda results, context: f"Summary: {results['1']}\nVerified Facts: {results['2']}",
-        parallel_results
-    )
-    
-    # Execute the workflow
-    result = await flow.run({
-        "topic": "quantum computing advancements in the last year"
-    })
-    
-    print(result)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-### AI-Powered Router
-
-Intelligent routing to select the best agent for each query:
-
-```python
-from python_a2a import AgentNetwork, AIAgentRouter, A2AClient
-import asyncio
-
-async def main():
-    # Create a network with specialized agents
-    network = AgentNetwork()
-    network.add("math", "http://localhost:5001")
-    network.add("history", "http://localhost:5002")
-    network.add("science", "http://localhost:5003")
-    network.add("literature", "http://localhost:5004")
-    
-    # Create a router using an LLM for decision making
-    router = AIAgentRouter(
-        llm_client=A2AClient("http://localhost:5000/openai"),
-        agent_network=network
-    )
-    
-    # Sample queries to route
-    queries = [
-        "What is the formula for the area of a circle?",
-        "Who wrote The Great Gatsby?",
-        "When did World War II end?",
-        "How does photosynthesis work?",
-        "What are Newton's laws of motion?"
-    ]
-    
-    # Route each query to the best agent
-    for query in queries:
-        agent_name, confidence = router.route_query(query)
-        agent = network.get_agent(agent_name)
-        
-        print(f"Query: {query}")
-        print(f"Routed to: {agent_name} (confidence: {confidence:.2f})")
-        
-        # Get response from the selected agent
-        response = agent.ask(query)
-        print(f"Response: {response[:100]}...\n")
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-### Command Line Interface
-
-The new CLI provides easy access to agent functionality:
-
-```bash
-# Send a message to an agent
-a2a send http://localhost:5000 "What is artificial intelligence?"
-
-# Stream a response in real-time
-a2a stream http://localhost:5000 "Generate a step-by-step tutorial for making pasta"
-
-# Start an OpenAI-powered A2A server
-a2a openai --model gpt-4 --system-prompt "You are a helpful coding assistant"
-
-# Start an Anthropic-powered A2A server
-a2a anthropic --model claude-3-opus-20240229 --system-prompt "You are a friendly AI teacher"
-
-# Start an MCP server with tools
-a2a mcp-serve --name "Data Analysis MCP" --port 5001 --script analysis_tools.py
-
-# Start an MCP-enabled A2A agent
-a2a mcp-agent --servers data=http://localhost:5001 calc=http://localhost:5002
-
-# Call an MCP tool directly
-a2a mcp-call http://localhost:5001 analyze_csv --params file=data.csv columns=price,date
-
-# Manage agent networks
-a2a network --add weather=http://localhost:5001 travel=http://localhost:5002 --save network.json
-
-# Run a workflow from a script
-a2a workflow --script research_workflow.py --context initial_data.json
-```
-
-## 📖 Architecture & Design Principles
-
-Python A2A is built on three core design principles:
-
-1. **Protocol First**: Adheres strictly to the A2A and MCP protocol specifications for maximum interoperability
-
-2. **Modularity**: All components are designed to be composable and replaceable
-
-3. **Progressive Enhancement**: Start simple and add complexity only as needed
-
-The architecture consists of seven main components:
-
-- **Models**: Data structures representing A2A messages, tasks, and agent cards
-- **Client**: Components for sending messages to A2A agents and managing agent networks
-- **Server**: Components for building A2A-compatible agents
-- **MCP**: Tools for implementing Model Context Protocol servers and clients
-- **LangChain**: Bridge components for LangChain integration
-- **Workflow**: Engine for orchestrating complex agent interactions
-- **Utils**: Helper functions for common tasks
-- **CLI**: Command-line interface for interacting with agents
-
-## 🗺️ Use Cases
-
-Python A2A can be used to build a wide range of AI systems:
-
-### Research & Development
-
-- **Experimentation Framework**: Easily swap out different LLM backends while keeping the same agent interface
-- **Benchmark Suite**: Compare performance of different agent implementations on standardized tasks
-- **Streaming Research Assistants**: Create responsive research tools with real-time output using streaming
-
-### Enterprise Systems
-
-- **AI Orchestration**: Coordinate multiple AI agents across different departments using agent networks
-- **Legacy System Integration**: Wrap legacy systems with A2A interfaces for AI accessibility
-- **Complex Workflows**: Create sophisticated business processes with multi-agent workflows and conditional branching
-
-### Customer-Facing Applications
-
-- **Multi-Stage Assistants**: Break complex user queries into subtasks handled by specialized agents
-- **Tool-Using Agents**: Connect LLMs to database agents, calculation agents, and more using MCP
-- **Real-time Chat Interfaces**: Build responsive chat applications with streaming response support
-
-### Education & Training
-
-- **AI Education**: Create educational systems that demonstrate agent collaboration
-- **Simulation Environments**: Build simulated environments where multiple agents interact
-- **Educational Workflows**: Design step-by-step learning processes with feedback loops
-
-## 🛠️ Real-World Examples
-
-Check out the [`examples/`](https://github.com/themanojdesai/python-a2a/tree/main/examples) directory for real-world examples, including:
-
-- Multi-agent customer support systems
-- LLM-powered research assistants with tool access
-- LangChain integration examples
-- MCP server implementations for various tools
-- Workflow orchestration examples
-- Agent network management
-
-## 🔄 Related Projects
-
-Here are some related projects in the AI agent and interoperability space:
-
-- [**Google A2A**](https://github.com/google/A2A) - The official Google A2A protocol specification
-- [**LangChain**](https://github.com/langchain-ai/langchain) - Framework for building applications with LLMs
-- [**AutoGen**](https://github.com/microsoft/autogen) - Microsoft's framework for multi-agent conversations
-- [**CrewAI**](https://github.com/joaomdmoura/crewAI) - Framework for orchestrating role-playing agents
-- [**MCP**](https://github.com/contextco/mcp) - The Model Context Protocol for tool-using agents
-
-## 👥 Contributors
-
-Thanks to all our contributors!
-
-<a href="https://github.com/themanojdesai/python-a2a/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=themanojdesai/python-a2a" />
-</a>
-
-Want to contribute? Check out our [contributing guide](https://python-a2a.readthedocs.io/en/latest/contributing.html).
-
-## 🤝 Community & Support
-
-- **[GitHub Issues](https://github.com/themanojdesai/python-a2a/issues)**: Report bugs or request features
-- **[GitHub Discussions](https://github.com/themanojdesai/python-a2a/discussions)**: Ask questions and share ideas
-- **[Contributing Guide](https://python-a2a.readthedocs.io/en/latest/contributing.html)**: Learn how to contribute to the project
-- **[ReadTheDocs](https://python-a2a.readthedocs.io/en/latest/)**: Visit our documentation site
-
-## 📝 Citing this Project
-
-If you use Python A2A in your research or academic work, please cite it as:
-
-```
-@software{desai2025pythona2a,
-  author = {Desai, Manoj},
-  title = {Python A2A: A Comprehensive Implementation of the Agent-to-Agent Protocol},
-  url = {https://github.com/themanojdesai/python-a2a},
-  version = {0.5.0},
-  year = {2025},
-}
-```
-
-## ⭐ Star This Repository
-
-If you find this library useful, please consider giving it a star on GitHub! It helps others discover the project and motivates further development.
-
-[![GitHub Repo stars](https://img.shields.io/github/stars/themanojdesai/python-a2a?style=social)](https://github.com/themanojdesai/python-a2a/stargazers)
-
-### Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=themanojdesai/python-a2a&type=Date)](https://star-history.com/#themanojdesai/python-a2a&Date)
-
-## 🙏 Acknowledgements
-
-- The [Google A2A team](https://github.com/google/A2A) for creating the A2A protocol
-- The [Contextual AI team](https://contextual.ai/) for the Model Context Protocol
-- The [LangChain team](https://github.com/langchain-ai) for their powerful LLM framework
-- All our [contributors](https://github.com/themanojdesai/python-a2a/graphs/contributors) for their valuable input
-
-## 👨‍💻 Author
-
-**Manoj Desai**
-
-- GitHub: [themanojdesai](https://github.com/themanojdesai)
-- LinkedIn: [themanojdesai](https://www.linkedin.com/in/themanojdesai/)
-- Medium: [@the_manoj_desai](https://medium.com/@the_manoj_desai)
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-Made with ❤️ by [Manoj Desai](https://github.com/themanojdesai)
