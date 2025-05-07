@@ -120,13 +120,13 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
         """
         try:
             # Create a prompt based on the agent's goal and inputs
-            prompt = f"Goal: {self.goal}\n\nInputs: {inputs}\n\nPlease process these inputs according to the goal."
+            prompt = f"Goal: {{self.goal}}\\n\\nInputs: {{inputs}}\\n\\nPlease process these inputs according to the goal."
             
             response = self.client.chat.completions.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": f"You are an AI agent with the following goal: {self.goal}"},
-                    {"role": "user", "content": prompt}}
+                    {{"role": "system", "content": f"You are an AI agent with the following goal: {{self.goal}}"}},
+                    {{"role": "user", "content": prompt}}
                 ]
             )
             return {{"status": "success", "result": response.choices[0].message.content}}
