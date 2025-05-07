@@ -2,8 +2,48 @@ import os
 import sys
 import requests
 import openai
+import json
 from typing import List, Optional, Dict, Any
 from pathlib import Path
+
+def update_config_json(agent_info: Dict[str, Any], config_path: Path) -> None:
+    """
+    Update the config.json file with new agent information.
+    
+    Args:
+        agent_info: Dictionary containing agent metadata
+        config_path: Path to the config.json file
+    """
+    # Create config file if it doesn't exist
+    if not config_path.exists():
+        config = {
+            "agents": [],
+            "server_config": {
+                "host": "localhost",
+                "default_port": 5001,
+                "timeout": 30,
+                "max_retries": 3,
+                "log_level": "INFO"
+            }
+        }
+    else:
+        # Read existing config
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+    
+    # Check if agent already exists
+    for i, agent in enumerate(config["agents"]):
+        if agent["name"] == agent_info["name"]:
+            # Update existing agent
+            config["agents"][i] = agent_info
+            break
+    else:
+        # Add new agent
+        config["agents"].append(agent_info)
+    
+    # Write updated config
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=4)
 
 def create_agent_file(
     agent_name: str,
@@ -216,6 +256,26 @@ if __name__ == "__main__":
     # Write the code to file
     with open(file_path, 'w') as f:
         f.write(code)
+    
+    # Update config.json with new agent information
+    agent_info = {
+        "name": agent_name,
+        "description": agent_description,
+        "version": "1.0.0",
+        "port": agent_port,
+        "file": filename,
+        "skills": [
+            {
+                "name": skill,
+                "description": f"Skill for {skill.lower()}",
+                "tags": agent_tags or []
+            }
+            for skill in (agent_skills or ["Process Input"])
+        ]
+    }
+    
+    config_path = agents_dir / "config.json"
+    update_config_json(agent_info, config_path)
     
     return str(file_path)
 

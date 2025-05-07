@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 import os
-import subprocess
 import sys
 import time
 import shutil
@@ -22,7 +21,6 @@ from runnable_config import SessionConfig
 import json
 import uuid
 import logging
-from python_a2a import AgentCard, A2AServer, enable_discovery
 
 # Load environment variables
 load_dotenv()
@@ -89,7 +87,6 @@ class StorageManager:
 
 class AgentNetworkManager:
     def __init__(self):
-        self.processes: Dict[str, Optional[subprocess.Popen]] = {}
         self.networks: Dict[str, Optional[object]] = {
             'text': None,
             'eda': None,
@@ -97,133 +94,26 @@ class AgentNetworkManager:
         }
         self.conversation_history: Dict[UUID, List[ConversationEntry]] = {}
         self.session_config = SessionConfig()  # Initialize session configuration
-        self._validate_credentials()
-        self._set_default_ports()
-        self.registry_port = os.getenv("DISCOVERY_PORT", "8000")
-        self.registry_url = f"http://localhost:{self.registry_port}"
 
-    def _validate_credentials(self) -> None:
-        """Validate that either OpenAI or Azure OpenAI credentials are set."""
-        has_openai = bool(os.getenv("OPENAI_API_KEY"))
-        has_azure = (bool(os.getenv("AZURE_OPENAI_API_KEY")) and 
-                    bool(os.getenv("AZURE_OPENAI_ENDPOINT")) and 
-                    bool(os.getenv("AZURE_OPENAI_API_VERSION")))
-        
-        if not (has_openai or has_azure):
-            raise HTTPException(status_code=500, detail="No valid API credentials found")
-        
-        print("Using OpenAI credentials" if has_openai else "Using Azure OpenAI credentials")
-
-    def _set_default_ports(self) -> None:
-        """Set default ports for all agents if not specified."""
-        default_ports = {
-            "SUMMARIZER_PORT": "5001",
-            "TRANSLATOR_PORT": "5002",
-            "DATA_ANALYSIS_PORT": "5003",
-            "DATA_VISUALIZATION_PORT": "5004",
-            "DATA_WRANGLING_PORT": "5005",
-            "NLQ_RECONSTRUCTION_PORT": "5007",
-            "GATING_PORT": "5008",
-            "DYNAMIC_FEW_SHOTS_PORT": "5009",
-            "SQL_GENERATION_PORT": "5010"
-        }
-        
-        for port_name, default_port in default_ports.items():
-            if not os.getenv(port_name):
-                os.environ[port_name] = default_port
-
-    def start_agent(self, agent_file: str, name: str) -> Optional[subprocess.Popen]:
-        """Start an agent in a new process."""
-        print(f"Starting {name} Agent...")
-        try:
-            process = subprocess.Popen(
-                [sys.executable, agent_file],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            self.processes[name] = process
-            return process
-        except Exception as e:
-            print(f"Error starting {name} Agent: {str(e)}")
-            return None
-
-    def register_agent(self, name: str, description: str, port: str) -> None:
-        """Register an agent with the discovery service."""
-        try:
-            agent_card = AgentCard(
-                name=name,
-                description=description,
-                url=f"http://localhost:{port}",
-                version="1.0.0",
-                capabilities={
-                    "google_a2a_compatible": True
-                }
-            )
-            agent = A2AServer(agent_card=agent_card)
-            enable_discovery(agent, registry_url=self.registry_url)
-            logger.info(f"Successfully registered {name} agent")
-        except Exception as e:
-            logger.error(f"Failed to register {name} agent: {str(e)}")
-
-    def initialize_agents(self) -> None:
-        """Initialize all agents and their networks."""
-        # Start and register text processing agents
-        self.start_agent("agents/summarizer_agent.py", "Summarizer")
-        self.register_agent("Summarizer", "Summarizes text content", os.getenv("SUMMARIZER_PORT", "5001"))
-        
-        self.start_agent("agents/translator_agent.py", "Translator")
-        self.register_agent("Translator", "Translates text to other languages", os.getenv("TRANSLATOR_PORT", "5002"))
-        
-        # Start and register EDA agents
-        self.start_agent("agents/data_analysis_agent.py", "Data Analysis")
-        self.register_agent("Data Analysis", "Analyzes data and provides insights", os.getenv("DATA_ANALYSIS_PORT", "5003"))
-        
-        self.start_agent("agents/data_visualization_agent.py", "Data Visualization")
-        self.register_agent("Data Visualization", "Creates visualizations from data", os.getenv("DATA_VISUALIZATION_PORT", "5004"))
-        
-        self.start_agent("agents/data_wrangling_agent.py", "Data Wrangling")
-        self.register_agent("Data Wrangling", "Cleans and transforms data", os.getenv("DATA_WRANGLING_PORT", "5005"))
-        
-        # Start and register Text2SQL agents
-        self.start_agent("agents/nlq_reconstruction.py", "NLQ Reconstruction")
-        self.register_agent("NLQ Reconstruction", "Reconstructs natural language queries", os.getenv("NLQ_RECONSTRUCTION_PORT", "5007"))
-        
-        self.start_agent("agents/gating.py", "Gating")
-        self.register_agent("Gating", "Routes queries to appropriate agents", os.getenv("GATING_PORT", "5008"))
-        
-        self.start_agent("agents/dynamic_few_shots.py", "Dynamic Few Shots")
-        self.register_agent("Dynamic Few Shots", "Provides dynamic few-shot examples", os.getenv("DYNAMIC_FEW_SHOTS_PORT", "5009"))
-        
-        self.start_agent("agents/sql_generation.py", "SQL Generation")
-        self.register_agent("SQL Generation", "Generates SQL queries from natural language", os.getenv("SQL_GENERATION_PORT", "5010"))
-        
-        # Initialize networks
+    def initialize_networks(self) -> None:
+        """Initialize agent networks."""
         self.networks['text'] = TextProcessingAgent()
         self.networks['eda'] = EDAAgentNetwork()
         self.networks['text2sql'] = Text2SQLAgentNetwork()
         
-        # Wait for agents to start up
-        print("Waiting for agents to start up...")
+        # Wait for networks to initialize
+        print("Waiting for networks to initialize...")
         time.sleep(3)
         
-        self._print_available_agents()
+        self._print_available_networks()
 
-    def _print_available_agents(self) -> None:
-        """Print information about available agents in each network."""
+    def _print_available_networks(self) -> None:
+        """Print information about available networks."""
         for network_type, network in self.networks.items():
             if network:
-                print(f"\nAvailable {network_type.title()} Agents:")
-                for agent in network.list_agents():
-                    print(f"- {agent.get('name', 'Unnamed')}: {agent.get('description', 'No description')}")
-
-    def cleanup(self) -> None:
-        """Terminate all agent processes and clean up sessions."""
-        for process in self.processes.values():
-            if process:
-                process.terminate()
-        self.session_config.cleanup_old_sessions()
-        print("All processes terminated and sessions cleaned up.")
+                print(f"\nAvailable {network_type.title()} Network:")
+                print(f"- Status: Active")
+                print(f"- Type: {network_type}")
 
     def add_conversation_entry(self, session_id: UUID, user_input: str, response: dict, agent_type: str) -> None:
         """Add a new entry to the conversation history and update session context."""
@@ -279,12 +169,12 @@ agent_manager = AgentNetworkManager()
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize agents when the FastAPI application starts."""
+    """Initialize networks when the FastAPI application starts."""
     # Clean up any existing temporary files and sessions
     storage_manager.cleanup_all()
     agent_manager.session_config.cleanup_old_sessions()
-    # Initialize agents
-    agent_manager.initialize_agents()
+    # Initialize networks
+    agent_manager.initialize_networks()
     # Start periodic cleanup task
     asyncio.create_task(periodic_cleanup())
 
@@ -297,8 +187,7 @@ async def periodic_cleanup():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Clean up processes when the FastAPI application shuts down."""
-    agent_manager.cleanup()
+    """Clean up when the FastAPI application shuts down."""
     storage_manager.cleanup_all()
 
 @text_processing_router.post("/ask", response_model=AgentResponse)

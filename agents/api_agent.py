@@ -1,6 +1,7 @@
 from python_a2a import A2AServer, skill, agent, TaskStatus, TaskState
 import os
 import requests
+import openai
 from typing import Dict, Any
 from dotenv import load_dotenv
 
@@ -8,18 +9,39 @@ from dotenv import load_dotenv
 load_dotenv()
 
 @agent(
-    name="My Agent",
-    description="My agent description",
+    name="API Agent",
+    description="Processes data through an external API",
     version="1.0.0"
 )
-class MyAgentAgent(A2AServer):
+class APIAgentAgent(A2AServer):
     
     def __init__(self):
         super().__init__()
         self.url = "https://api.example.com"
-        self.goal = "My agent goal"
-        self.tags = ['tag1', 'tag2']
+        self.goal = "Transform input data using external API"
+        self.tags = ['api', 'data']
         self.port = 5002
+        self.client = self._initialize_openai_client()
+    
+    def _initialize_openai_client(self):
+        """Initialize OpenAI client with fallback to Azure OpenAI."""
+        try:
+            # Try to initialize the default OpenAI client
+            return openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        except Exception as e:
+            print(f"Failed to initialize OpenAI client: {str(e)}")
+            print("Falling back to Azure OpenAI...")
+            
+            # Fall back to Azure OpenAI
+            try:
+                return openai.AzureOpenAI(
+                    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                    api_version=os.getenv("AZURE_OPENAI_API_VERSION")
+                )
+            except Exception as azure_error:
+                print(f"Failed to initialize Azure OpenAI client: {str(azure_error)}")
+                raise Exception("Failed to initialize any OpenAI client. Please check your API keys and configurations.")
     
     def _call_api(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -38,10 +60,35 @@ class MyAgentAgent(A2AServer):
         except requests.exceptions.RequestException as e:
             return {"status": "error", "message": f"API call failed: {str(e)}"}
     
+    def _call_llm(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Make LLM call using OpenAI API.
+        
+        Args:
+            inputs: Dictionary of input parameters
+            
+        Returns:
+            Dict containing LLM response
+        """
+        try:
+            # Create a prompt based on the agent's goal and inputs
+            prompt = f"Goal: {self.goal}\n\nInputs: {inputs}\n\nPlease process these inputs according to the goal."
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": f"You are an AI agent with the following goal: {self.goal}"},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            return {"status": "success", "result": response.choices[0].message.content}
+        except Exception as e:
+            return {"status": "error", "message": f"LLM call failed: {str(e)}"}
+    
     @skill(
         name="Process Input",
         description="Process the input data according to agent specifications",
-        tags=['tag1', 'tag2']
+        tags=['api', 'data']
     )
     def process_input(self, **kwargs):
         """
@@ -56,8 +103,12 @@ class MyAgentAgent(A2AServer):
                 if required_input not in kwargs:
                     raise ValueError(f"Missing required input: {required_input}")
             
-            # Make API call with validated inputs
-            result = self._call_api(kwargs)
+            # Choose between API call and LLM call based on URL availability
+            if self.url:
+                result = self._call_api(kwargs)
+            else:
+                result = self._call_llm(kwargs)
+            
             return result
         except Exception as e:
             return {"status": "error", "message": str(e)}
@@ -87,7 +138,7 @@ class MyAgentAgent(A2AServer):
             )
             return task
         
-        # Process the input and make API call
+        # Process the input and make appropriate call
         result = self.process_input(**inputs)
         
         # Create response
@@ -110,5 +161,5 @@ if __name__ == "__main__":
     port = int(os.getenv("AGENT_PORT", 5002))
     
     # Create and run the server
-    agent = MyAgentAgent()
+    agent = APIAgentAgent()
     run_server(agent, port=port)
