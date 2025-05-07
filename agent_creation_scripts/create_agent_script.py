@@ -1,16 +1,17 @@
 import os
 import sys
 import requests
+import openai
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 
 def create_agent_file(
     agent_name: str,
-    agent_url: str,
-    agent_inputs: List[str],
-    agent_skills: List[str],
-    agent_description: str,
-    agent_goal: str,
+    agent_url: Optional[str] = None,
+    agent_inputs: List[str] = None,
+    agent_skills: List[str] = None,
+    agent_description: str = None,
+    agent_goal: str = None,
     agent_tags: Optional[List[str]] = None,
     agent_port: int = 5001,
     overwrite: bool = False
@@ -20,7 +21,7 @@ def create_agent_file(
     
     Args:
         agent_name: Name of the agent (used for filename)
-        agent_url: API or endpoint to be used by the agent
+        agent_url: API or endpoint to be used by the agent (optional)
         agent_inputs: List of input variables or expected parameters
         agent_skills: List of skills or tools the agent can use
         agent_description: Description of the agent's purpose
@@ -48,6 +49,7 @@ def create_agent_file(
     code = f'''from python_a2a import A2AServer, skill, agent, TaskStatus, TaskState
 import os
 import requests
+import openai
 from typing import Dict, Any
 from dotenv import load_dotenv
 
@@ -67,6 +69,27 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
         self.goal = "{agent_goal}"
         self.tags = {agent_tags or []}
         self.port = {agent_port}
+        self.client = self._initialize_openai_client()
+    
+    def _initialize_openai_client(self):
+        """Initialize OpenAI client with fallback to Azure OpenAI."""
+        try:
+            # Try to initialize the default OpenAI client
+            return openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        except Exception as e:
+            print(f"Failed to initialize OpenAI client: {{str(e)}}")
+            print("Falling back to Azure OpenAI...")
+            
+            # Fall back to Azure OpenAI
+            try:
+                return openai.AzureOpenAI(
+                    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                    api_version=os.getenv("AZURE_OPENAI_API_VERSION")
+                )
+            except Exception as azure_error:
+                print(f"Failed to initialize Azure OpenAI client: {{str(azure_error)}}")
+                raise Exception("Failed to initialize any OpenAI client. Please check your API keys and configurations.")
     
     def _call_api(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -84,6 +107,31 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
             return response.json()
         except requests.exceptions.RequestException as e:
             return {{"status": "error", "message": f"API call failed: {{str(e)}}"}}
+    
+    def _call_llm(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Make LLM call using OpenAI API.
+        
+        Args:
+            inputs: Dictionary of input parameters
+            
+        Returns:
+            Dict containing LLM response
+        """
+        try:
+            # Create a prompt based on the agent's goal and inputs
+            prompt = f"Goal: {self.goal}\n\nInputs: {inputs}\n\nPlease process these inputs according to the goal."
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": f"You are an AI agent with the following goal: {self.goal}"},
+                    {"role": "user", "content": prompt}}
+                ]
+            )
+            return {{"status": "success", "result": response.choices[0].message.content}}
+        except Exception as e:
+            return {{"status": "error", "message": f"LLM call failed: {{str(e)}}"}}
     
     @skill(
         name="Process Input",
@@ -103,8 +151,12 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
                 if required_input not in kwargs:
                     raise ValueError(f"Missing required input: {{required_input}}")
             
-            # Make API call with validated inputs
-            result = self._call_api(kwargs)
+            # Choose between API call and LLM call based on URL availability
+            if self.url:
+                result = self._call_api(kwargs)
+            else:
+                result = self._call_llm(kwargs)
+            
             return result
         except Exception as e:
             return {{"status": "error", "message": str(e)}}
@@ -134,7 +186,7 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
             )
             return task
         
-        # Process the input and make API call
+        # Process the input and make appropriate call
         result = self.process_input(**inputs)
         
         # Create response
@@ -173,7 +225,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Create a new agent file")
     parser.add_argument("--name", required=True, help="Name of the agent")
-    parser.add_argument("--url", required=True, help="API or endpoint URL")
+    parser.add_argument("--url", help="API or endpoint URL (optional)")
     parser.add_argument("--inputs", required=True, nargs="+", help="List of input parameters")
     parser.add_argument("--skills", required=True, nargs="+", help="List of agent skills")
     parser.add_argument("--description", required=True, help="Agent description")
