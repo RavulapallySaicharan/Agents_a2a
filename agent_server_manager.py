@@ -6,6 +6,7 @@ import sys
 import logging
 import socket
 import requests
+import threading
 from pathlib import Path
 from typing import Dict, Optional, Set
 from watchdog.observers import Observer
@@ -42,6 +43,8 @@ class AgentServerManager:
         self.registry_port = os.getenv("DISCOVERY_PORT", "8000")
         self.registry_url = f"http://localhost:{self.registry_port}"
         self.discovery_process: Optional[subprocess.Popen] = None
+        self.registration_threads: Dict[str, threading.Thread] = {}
+        self.stop_registration = threading.Event()
         self._validate_credentials()
         self._ensure_discovery_engine()
 
@@ -57,7 +60,7 @@ class AgentServerManager:
     def _is_discovery_engine_running(self) -> bool:
         """Check if the discovery engine is running."""
         try:
-            response = requests.get(f"{self.registry_url}/health")
+            response = requests.get(f"{self.registry_url}/health", timeout=5)
             return response.status_code == 200
         except requests.RequestException:
             return False
@@ -74,6 +77,15 @@ class AgentServerManager:
 
         try:
             logger.info("Starting agent discovery engine...")
+            # Kill any existing discovery engine process
+            if self.discovery_process:
+                try:
+                    self.discovery_process.terminate()
+                    self.discovery_process.wait(timeout=5)
+                except:
+                    pass
+
+            # Start new discovery engine process
             self.discovery_process = subprocess.Popen(
                 [sys.executable, "agent_discovery/start_agent_discovery_engine.py"],
                 stdout=subprocess.PIPE,
@@ -81,17 +93,23 @@ class AgentServerManager:
                 text=True
             )
             
-            # Wait for the discovery engine to start
-            max_retries = 10
+            # Wait for the discovery engine to start with increased timeout
+            max_retries = 15
             retry_count = 0
             while retry_count < max_retries:
                 if self._is_discovery_engine_running():
                     logger.info("Discovery engine started successfully")
                     return True
-                time.sleep(1)
+                time.sleep(2)  # Increased wait time between retries
                 retry_count += 1
+                
+                # Check if process is still running
+                if self.discovery_process.poll() is not None:
+                    stdout, stderr = self.discovery_process.communicate()
+                    logger.error(f"Discovery engine failed to start. Output: {stdout}\nError: {stderr}")
+                    return False
             
-            logger.error("Failed to start discovery engine")
+            logger.error("Failed to start discovery engine - timeout")
             return False
         except Exception as e:
             logger.error(f"Error starting discovery engine: {str(e)}")
@@ -100,7 +118,7 @@ class AgentServerManager:
     def _ensure_discovery_engine(self) -> None:
         """Ensure the discovery engine is running."""
         if not self._start_discovery_engine():
-            raise Exception("Failed to start agent discovery engine")
+            raise Exception("Failed to start discovery engine. Please check the logs for details.")
 
     def _validate_credentials(self) -> None:
         """Validate that either OpenAI or Azure OpenAI credentials are set."""
@@ -142,21 +160,29 @@ class AgentServerManager:
 
     def register_agent(self, agent_info: dict) -> None:
         """Register an agent with the discovery service."""
-        try:
-            agent_card = AgentCard(
-                name=agent_info["name"],
-                description=agent_info["description"],
-                url=f"http://localhost:{agent_info['port']}",
-                version=agent_info["version"],
-                capabilities={
-                    "google_a2a_compatible": True
-                }
-            )
-            agent = A2AServer(agent_card=agent_card)
-            enable_discovery(agent, registry_url=self.registry_url)
-            logger.info(f"Successfully registered {agent_info['name']} agent")
-        except Exception as e:
-            logger.error(f"Failed to register {agent_info['name']} agent: {str(e)}")
+        def periodic_registration():
+            while not self.stop_registration.is_set():
+                try:
+                    agent_card = AgentCard(
+                        name=agent_info["name"],
+                        description=agent_info["description"],
+                        url=f"http://localhost:{agent_info['port']}",
+                        version=agent_info["version"],
+                        capabilities={
+                            "google_a2a_compatible": True
+                        }
+                    )
+                    agent = A2AServer(agent_card=agent_card)
+                    enable_discovery(agent, registry_url=self.registry_url)
+                    logger.info(f"Successfully registered {agent_info['name']} agent")
+                except Exception as e:
+                    logger.error(f"Failed to register {agent_info['name']} agent: {str(e)}")
+                time.sleep(30)  # Re-register every 30 seconds
+
+        # Start periodic registration in a separate thread
+        registration_thread = threading.Thread(target=periodic_registration, daemon=True)
+        registration_thread.start()
+        self.registration_threads[agent_info["name"]] = registration_thread
 
     def stop_agent(self, agent_name: str) -> None:
         """Stop a running agent."""
@@ -201,6 +227,8 @@ class AgentServerManager:
 
     def stop_all_agents(self) -> None:
         """Stop all running agents."""
+        self.stop_registration.set()  # Signal all registration threads to stop
+        
         for agent_name in list(self.running_agents):
             self.stop_agent(agent_name)
         

@@ -266,7 +266,7 @@ if __name__ == "__main__":
         "file": filename,
         "skills": [
             {
-                "name": skill,
+                "name": skill.capitalize(),
                 "description": f"Skill for {skill.lower()}",
                 "tags": agent_tags or []
             }
