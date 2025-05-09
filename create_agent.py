@@ -1,25 +1,24 @@
 from agent_creation_scripts.create_agent_script import create_agent_file
 
 # # Create a Text Summarization Agent
-# summarization_agent_path = create_agent_file(
-#     agent_name="Text Summarizer",
-#     # agent_url="https://api.openai.com/v1/chat/completions",
-#     agent_inputs=["text"],
-#     agent_skills=["summarize", "extract_key_points", "maintain_context"],
-#     agent_description="Creates concise summaries of long text while preserving key information",
-#     agent_goal="Generate accurate and coherent summaries of input text",
-#     agent_tags=["nlp", "summarization", "text-processing"],
-#     agent_port=5012,
-#     overwrite=True
-# )
-
-# Create a Sentiment Analysis Agent
-create_agent_file(
-    agent_name="Sentiment Analyzer",
-    agent_inputs=["text"],
-    agent_description="Analyzes text to determine sentiment and emotional tone",
-    agent_goal="Provide accurate sentiment analysis and emotional insights from text",
-    agent_tags=["nlp", "sentiment-analysis", "emotion-detection"],
-    agent_port=5013,
+summarization_agent_path = create_agent_file(
+    agent_name="Text2SQL",
+    agent_url="http://10.135.80.150:5057/text_to_sql_agent",
+    agent_inputs=["userInput"],
+    agent_description="Creates sql from user nlq",
+    agent_goal="Generate sql based on the user nlq",
+    agent_tags=["nlq", "sql", "text2sql"],
+    agent_port=5012,
     overwrite=True
 )
+
+# Create a Sentiment Analysis Agent
+# create_agent_file(
+#     agent_name="Sentiment Analyzer",
+#     agent_inputs=["text"],
+#     agent_description="Analyzes text to determine sentiment and emotional tone",
+#     agent_goal="Provide accurate sentiment analysis and emotional insights from text",
+#     agent_tags=["nlp", "sentiment-analysis", "emotion-detection"],
+#     agent_port=5013,
+#     overwrite=True
+# )
