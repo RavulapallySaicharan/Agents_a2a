@@ -140,7 +140,7 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            return f"API call failed: {str(e)}"
+            return f"API call failed: {{str(e)}}"
     
     def _call_llm(self, inputs: Dict[str, Any]) -> str:
         """
@@ -154,18 +154,18 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
         """
         try:
             # Create a prompt based on the agent's goal and inputs
-            prompt = f"Goal: {self.goal}\n\nInputs: {inputs}\n\nPlease process these inputs according to the goal."
+            prompt = f"Goal: {{self.goal}}\\n\\nInputs: {{inputs}}\\n\\nPlease process these inputs according to the goal."
             
             response = self.client.chat.completions.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": f"You are an AI agent with the following goal: {self.goal}"},
-                    {"role": "user", "content": prompt}
+                    {{"role": "system", "content": f"You are an AI agent with the following goal: {{self.goal}}"}},
+                    {{"role": "user", "content": prompt}}
                 ]
             )
             return response.choices[0].message.content
         except Exception as e:
-            return f"LLM call failed: {str(e)}"
+            return f"LLM call failed: {{str(e)}}"
     
     @skill(
         name="{agent_name}",

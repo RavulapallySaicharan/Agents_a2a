@@ -181,6 +181,24 @@
             "version": "1.0.0"
         },
         {
+            "description": "Creates sql from user nlq",
+            "file": "text2sql_agent.py",
+            "name": "Text2SQL",
+            "port": 5012,
+            "skills": [
+                {
+                    "description": "Creates sql from user nlq",
+                    "name": "Text2SQL",
+                    "tags": [
+                        "nlq",
+                        "sql",
+                        "text2sql"
+                    ]
+                }
+            ],
+            "version": "1.0.0"
+        },
+        {
             "description": "Translates text into specified target languages using OpenAI API",
             "file": "translator_agent.py",
             "name": "Translator Agent",
