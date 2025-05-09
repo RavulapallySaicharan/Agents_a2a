@@ -8,16 +8,16 @@
             "skills": [
                 {
                     "description": "Analyze data and generate insights",
+                    "inputs": [
+                        "data",
+                        "analysis_type",
+                        "parameters"
+                    ],
                     "name": "Analyze Data",
                     "tags": [
                         "analysis",
                         "data",
                         "insights"
-                    ],
-                    "inputs": [
-                        "data",
-                        "analysis_type",
-                        "parameters"
                     ]
                 }
             ],
@@ -31,16 +31,16 @@
             "skills": [
                 {
                     "description": "Generate visualizations from provided data",
+                    "inputs": [
+                        "data",
+                        "chart_type",
+                        "visualization_options"
+                    ],
                     "name": "Create Visualization",
                     "tags": [
                         "visualization",
                         "charts",
                         "graphs"
-                    ],
-                    "inputs": [
-                        "data",
-                        "chart_type",
-                        "visualization_options"
                     ]
                 }
             ],
@@ -54,16 +54,16 @@
             "skills": [
                 {
                     "description": "Clean and transform data for analysis",
+                    "inputs": [
+                        "data",
+                        "cleaning_rules",
+                        "transformation_steps"
+                    ],
                     "name": "Wrangle Data",
                     "tags": [
                         "data-cleaning",
                         "transformation",
                         "preprocessing"
-                    ],
-                    "inputs": [
-                        "data",
-                        "cleaning_rules",
-                        "transformation_steps"
                     ]
                 }
             ],
@@ -77,16 +77,16 @@
             "skills": [
                 {
                     "description": "Create dynamic few-shot examples for specified tasks",
+                    "inputs": [
+                        "task_description",
+                        "number_of_examples",
+                        "example_format"
+                    ],
                     "name": "Generate Examples",
                     "tags": [
                         "few-shot",
                         "examples",
                         "learning"
-                    ],
-                    "inputs": [
-                        "task_description",
-                        "number_of_examples",
-                        "example_format"
                     ]
                 }
             ],
@@ -100,39 +100,16 @@
             "skills": [
                 {
                     "description": "Manage and control access to agents and services",
+                    "inputs": [
+                        "request_type",
+                        "user_credentials",
+                        "resource_id"
+                    ],
                     "name": "Control Access",
                     "tags": [
                         "access-control",
                         "gateway",
                         "security"
-                    ],
-                    "inputs": [
-                        "request_type",
-                        "user_credentials",
-                        "resource_id"
-                    ]
-                }
-            ],
-            "version": "1.0.0"
-        },
-        {
-            "description": "Provides guidelines and best practices for various tasks",
-            "file": "guideline_agent.py",
-            "name": "Guideline Agent",
-            "port": 5004,
-            "skills": [
-                {
-                    "description": "Generate guidelines for specified tasks or topics",
-                    "name": "Generate Guidelines",
-                    "tags": [
-                        "guidelines",
-                        "best-practices",
-                        "advice"
-                    ],
-                    "inputs": [
-                        "topic",
-                        "context",
-                        "specific_requirements"
                     ]
                 }
             ],
@@ -146,16 +123,39 @@
             "skills": [
                 {
                     "description": "Convert various inputs into natural language queries",
+                    "inputs": [
+                        "input_format",
+                        "query_elements",
+                        "context"
+                    ],
                     "name": "Reconstruct Query",
                     "tags": [
                         "nlq",
                         "query",
                         "reconstruction"
-                    ],
+                    ]
+                }
+            ],
+            "version": "1.0.0"
+        },
+        {
+            "description": "Generates compelling product descriptions for e-commerce listings",
+            "file": "product_description_generator_agent.py",
+            "name": "Product Description Generator",
+            "port": 5014,
+            "skills": [
+                {
+                    "description": "Generates compelling product descriptions for e-commerce listings",
                     "inputs": [
-                        "input_format",
-                        "query_elements",
-                        "context"
+                        "product_name",
+                        "features",
+                        "category"
+                    ],
+                    "name": "Product Description Generator",
+                    "tags": [
+                        "ecommerce",
+                        "copywriting",
+                        "product-description"
                     ]
                 }
             ],
@@ -169,16 +169,16 @@
             "skills": [
                 {
                     "description": "Convert natural language to SQL queries",
+                    "inputs": [
+                        "natural_language_query",
+                        "database_schema",
+                        "query_type"
+                    ],
                     "name": "Generate SQL",
                     "tags": [
                         "sql",
                         "database",
                         "query"
-                    ],
-                    "inputs": [
-                        "natural_language_query",
-                        "database_schema",
-                        "query_type"
                     ]
                 }
             ],
@@ -192,16 +192,14 @@
             "skills": [
                 {
                     "description": "Analyzes text to determine sentiment and emotional tone",
+                    "inputs": [
+                        "text"
+                    ],
                     "name": "Sentiment Analyzer",
                     "tags": [
                         "nlp",
                         "sentiment-analysis",
                         "emotion-detection"
-                    ],
-                    "inputs": [
-                        "text",
-                        "analysis_depth",
-                        "emotion_categories"
                     ]
                 }
             ],
@@ -215,14 +213,14 @@
             "skills": [
                 {
                     "description": "Create a concise summary of the provided text",
+                    "inputs": [
+                        "text"
+                    ],
                     "name": "Summarize Text",
                     "tags": [
                         "summarize",
                         "text",
                         "content"
-                    ],
-                    "inputs": [
-                        "text"
                     ]
                 }
             ],
@@ -236,14 +234,14 @@
             "skills": [
                 {
                     "description": "Creates sql from user nlq",
+                    "inputs": [
+                        "userInput"
+                    ],
                     "name": "Text2SQL",
                     "tags": [
                         "nlq",
                         "sql",
                         "text2sql"
-                    ],
-                    "inputs": [
-                        "userInput"
                     ]
                 }
             ],
@@ -257,15 +255,15 @@
             "skills": [
                 {
                     "description": "Translate text to a specified target language",
+                    "inputs": [
+                        "text",
+                        "target_language"
+                    ],
                     "name": "Translate Text",
                     "tags": [
                         "translate",
                         "language",
                         "multilingual"
-                    ],
-                    "inputs": [
-                        "text",
-                        "target_language"
                     ]
                 }
             ],
