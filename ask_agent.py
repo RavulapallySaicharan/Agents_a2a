@@ -22,30 +22,31 @@ def display_available_agents(config):
 
 def get_agent_url(port, agent_file):
     # Construct the path to the agent file
-    agent_path = os.path.join('agents', agent_file)
+    # agent_path = os.path.join('agents', agent_file)
     
-    # Check if the file exists
-    if not os.path.exists(agent_path):
-        raise FileNotFoundError(f"Agent file not found: {agent_path}")
+    # # Check if the file exists
+    # if not os.path.exists(agent_path):
+    #     raise FileNotFoundError(f"Agent file not found: {agent_path}")
     
-    try:
-        # Run the agent file in the background
-        if sys.platform == 'win32':
-            # Windows
-            subprocess.Popen([sys.executable, agent_path], 
-                           creationflags=subprocess.CREATE_NEW_CONSOLE)
-        else:
-            # Unix-like systems
-            subprocess.Popen([sys.executable, agent_path],
-                           stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL)
+    # try:
+    #     # Run the agent file in the background
+    #     if sys.platform == 'win32':
+    #         # Windows
+    #         subprocess.Popen([sys.executable, agent_path], 
+    #                        creationflags=subprocess.CREATE_NEW_CONSOLE)
+    #     else:
+    #         # Unix-like systems
+    #         subprocess.Popen([sys.executable, agent_path],
+    #                        stdout=subprocess.DEVNULL,
+    #                        stderr=subprocess.DEVNULL)
         
-        # Wait a moment for the agent to start
-        time.sleep(2)
+    #     # Wait a moment for the agent to start
+    #     time.sleep(2)
         
-        return f"http://localhost:{port}"
-    except Exception as e:
-        raise Exception(f"Failed to start agent: {str(e)}")
+    #     return f"http://localhost:{port}"
+    # except Exception as e:
+    #     raise Exception(f"Failed to start agent: {str(e)}")
+    return f"http://localhost:{port}"
 
 def collect_agent_inputs(agent):
     """Collect all required inputs for the selected agent based on its configuration."""

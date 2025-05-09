@@ -84,6 +84,7 @@ def create_agent_file(
 import os
 import requests
 import openai
+import json
 from typing import Dict, Any
 from dotenv import load_dotenv
 
@@ -157,7 +158,7 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
             prompt = f"Goal: {{self.goal}}\\n\\nInputs: {{inputs}}\\n\\nPlease process these inputs according to the goal."
             
             response = self.client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "o4-mini-2025-04-16"),,
+                model=os.getenv("OPENAI_MODEL", "o4-mini-2025-04-16"),
                 messages=[
                     {{"role": "system", "content": f"You are an AI agent with the following goal: {{self.goal}}"}},
                     {{"role": "user", "content": prompt}}
@@ -181,6 +182,7 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
         """
         try:
             # Validate required inputs
+            kwargs = json.loads(kwargs["text"])
             for required_input in {agent_inputs}:
                 if required_input not in kwargs:
                     raise ValueError(f"Missing required input: {{required_input}}")
