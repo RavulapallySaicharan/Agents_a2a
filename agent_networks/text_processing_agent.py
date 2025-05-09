@@ -125,7 +125,7 @@ class AIRouterWithOpenAI(AIAgentRouter):
         
         try:
             response = self.client.chat.completions.create(
-                model="o4-mini-2025-04-16",
+                model=os.getenv("OPENAI_MODEL", "o4-mini-2025-04-16"),
                 messages=[
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": query}

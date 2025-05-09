@@ -5,6 +5,8 @@ import os
 import time
 import requests
 import json
+import subprocess
+import sys
 
 def load_agent_config():
     with open('agents/config.json', 'r') as f:
@@ -18,8 +20,113 @@ def display_available_agents(config):
         print(f"   Skills: {', '.join(skill['name'] for skill in agent['skills'])}")
         print()
 
-def get_agent_url(port):
-    return f"http://localhost:{port}"
+def get_agent_url(port, agent_file):
+    # Construct the path to the agent file
+    agent_path = os.path.join('agents', agent_file)
+    
+    # Check if the file exists
+    if not os.path.exists(agent_path):
+        raise FileNotFoundError(f"Agent file not found: {agent_path}")
+    
+    try:
+        # Run the agent file in the background
+        if sys.platform == 'win32':
+            # Windows
+            subprocess.Popen([sys.executable, agent_path], 
+                           creationflags=subprocess.CREATE_NEW_CONSOLE)
+        else:
+            # Unix-like systems
+            subprocess.Popen([sys.executable, agent_path],
+                           stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+        
+        # Wait a moment for the agent to start
+        time.sleep(2)
+        
+        return f"http://localhost:{port}"
+    except Exception as e:
+        raise Exception(f"Failed to start agent: {str(e)}")
+
+def collect_agent_inputs(agent):
+    """Collect all required inputs for the selected agent based on its configuration."""
+    inputs = {}
+    
+    # Get all skills and their required inputs
+    for skill in agent['skills']:
+        print(f"\nCollecting inputs for skill: {skill['name']}")
+        print(f"Description: {skill['description']}")
+        
+        for input_param in skill['inputs']:
+            # Handle special cases for certain input types
+            if input_param == 'target_language':
+                print("\nAvailable languages:")
+                print("1. Spanish")
+                print("2. French")
+                print("3. German")
+                print("4. Italian")
+                print("5. Portuguese")
+                print("6. Chinese")
+                print("7. Japanese")
+                print("8. Korean")
+                print("9. Russian")
+                print("10. Arabic")
+                lang_choice = input(f"Select target language (1-10): ")
+                lang_map = {
+                    "1": "Spanish", "2": "French", "3": "German", "4": "Italian",
+                    "5": "Portuguese", "6": "Chinese", "7": "Japanese", "8": "Korean",
+                    "9": "Russian", "10": "Arabic"
+                }
+                inputs[input_param] = lang_map.get(lang_choice, "English")
+            
+            elif input_param == 'analysis_type':
+                print("\nAvailable analysis types:")
+                print("1. Sentiment Analysis")
+                print("2. Topic Analysis")
+                print("3. Keyword Extraction")
+                print("4. Entity Recognition")
+                analysis_choice = input(f"Select analysis type (1-4): ")
+                analysis_map = {
+                    "1": "sentiment", "2": "topic", "3": "keywords", "4": "entities"
+                }
+                inputs[input_param] = analysis_map.get(analysis_choice, "sentiment")
+            
+            elif input_param == 'chart_type':
+                print("\nAvailable chart types:")
+                print("1. Bar Chart")
+                print("2. Line Chart")
+                print("3. Pie Chart")
+                print("4. Scatter Plot")
+                print("5. Heat Map")
+                chart_choice = input(f"Select chart type (1-5): ")
+                chart_map = {
+                    "1": "bar", "2": "line", "3": "pie", "4": "scatter", "5": "heatmap"
+                }
+                inputs[input_param] = chart_map.get(chart_choice, "bar")
+            
+            elif input_param == 'query_type':
+                print("\nAvailable query types:")
+                print("1. SELECT")
+                print("2. INSERT")
+                print("3. UPDATE")
+                print("4. DELETE")
+                query_choice = input(f"Select query type (1-4): ")
+                query_map = {
+                    "1": "select", "2": "insert", "3": "update", "4": "delete"
+                }
+                inputs[input_param] = query_map.get(query_choice, "select")
+            
+            else:
+                # For other input parameters, just ask for text input
+                value = input(f"Enter {input_param}: ")
+                inputs[input_param] = value
+    
+    return inputs
+
+def format_inputs_for_agent(inputs):
+    """Format the collected inputs into a structured message for the agent."""
+    # Convert inputs to a JSON-like string format
+    formatted_inputs = json.dumps(inputs, indent=2)
+    return formatted_inputs
 
 def main():
     # Load agent configuration
@@ -40,70 +147,63 @@ def main():
         except ValueError:
             print("Please enter a valid number.")
     
-    # Create client for selected agent
-    agent_url = get_agent_url(selected_agent['port'])
-    client = A2AClient(agent_url)
-    
-    print(f"\nConnected to {selected_agent['name']} on port {selected_agent['port']}")
-    print("Type 'exit', 'quit', or 'q' to end the session")
-    print("=============================================")
-    
-    # Create a conversation
-    conversation = Conversation()
-
     try:
-        while True:
-            # Get user input
-            user_input = input("You: ")
+        # Create client for selected agent
+        agent_url = get_agent_url(selected_agent['port'], selected_agent['file'])
+        client = A2AClient(agent_url)
+        
+        print(f"\nConnected to {selected_agent['name']} on port {selected_agent['port']}")
+        
+        # Collect all required inputs for the agent
+        agent_inputs = collect_agent_inputs(selected_agent)
+        
+        # Format the inputs into a message
+        formatted_inputs = format_inputs_for_agent(agent_inputs)
+        
+        # Create a message with the formatted inputs
+        user_message = Message(
+            content=TextContent(text=formatted_inputs),
+            role=MessageRole.USER
+        )
+        
+        # Create a conversation
+        conversation = Conversation()
+        conversation.add_message(user_message)
+        
+        try:
+            # Print "thinking" indicator
+            print(f"\nAgent is thinking...", end="", flush=True)
             
-            # Check for exit command
-            if user_input.lower() in ["exit", "quit", "q"]:
-                print("\nExiting interactive mode.")
-                break
+            # Time the response
+            start_time = time.time()
             
-            # Skip empty messages
-            if not user_input.strip():
-                continue
+            # Get the response by sending the message
+            bot_response = client.send_message(user_message)
+            conversation.add_message(bot_response)
             
-            # Create a message and add it to the conversation
-            user_message = Message(
-                content=TextContent(text=user_input),
-                role=MessageRole.USER
-            )
-            conversation.add_message(user_message)
+            # Calculate elapsed time
+            elapsed_time = time.time() - start_time
             
-            try:
-                # Print "thinking" indicator
-                print(f"\nAgent is thinking...", end="", flush=True)
-                
-                # Time the response
-                start_time = time.time()
-                
-                # Get the response by sending the message
-                bot_response = client.send_message(user_message)
-                conversation.add_message(bot_response)
-                
-                # Calculate elapsed time
-                elapsed_time = time.time() - start_time
-                
-                # Clear the "thinking" indicator
-                print("\r" + " " * 30 + "\r", end="", flush=True)
-                
-                # Extract the latest response
-                latest_response = conversation.messages[-1]
-                
-                # Print the response with timing info
-                print(f"Agent ({elapsed_time:.2f}s): {latest_response.content.text}\n")
+            # Clear the "thinking" indicator
+            print("\r" + " " * 30 + "\r", end="", flush=True)
+            
+            # Extract the latest response
+            latest_response = conversation.messages[-1]
+            
+            # Print the response with timing info
+            print(f"Agent ({elapsed_time:.2f}s): {latest_response.content.text}\n")
 
-            except Exception as e:
-                # Clear the "thinking" indicator
-                print("\r" + " " * 30 + "\r", end="", flush=True)
-                
-                print(f"\n❌ Error: {e}")
-                print("Try sending a different message.\n")
+        except Exception as e:
+            # Clear the "thinking" indicator
+            print("\r" + " " * 30 + "\r", end="", flush=True)
+            
+            print(f"\n❌ Error: {e}")
+            print("Try sending a different message.\n")
 
-    except KeyboardInterrupt:
-        print("\n\nSession ended by user.")
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
+        print("Failed to start the agent. Please try again.")
+        return
 
     # Print the full conversation summary at the end
     print("=================================================================")

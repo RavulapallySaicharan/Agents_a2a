@@ -47,7 +47,7 @@ class TranslatorAgent(A2AServer):
         """Translate the provided text to the target language using OpenAI API."""
         try:
             response = self.client.chat.completions.create(
-                model="o4-mini-2025-04-16",
+                model=os.getenv("OPENAI_MODEL", "o4-mini-2025-04-16"),
                 messages=[
                     {"role": "system", "content": "You are a helpful translator assistant."},
                     {"role": "user", "content": f"Translate the following text to {target_language}:\n\n{text}"}

@@ -13,6 +13,11 @@
                         "analysis",
                         "data",
                         "insights"
+                    ],
+                    "inputs": [
+                        "data",
+                        "analysis_type",
+                        "parameters"
                     ]
                 }
             ],
@@ -31,6 +36,11 @@
                         "visualization",
                         "charts",
                         "graphs"
+                    ],
+                    "inputs": [
+                        "data",
+                        "chart_type",
+                        "visualization_options"
                     ]
                 }
             ],
@@ -49,6 +59,11 @@
                         "data-cleaning",
                         "transformation",
                         "preprocessing"
+                    ],
+                    "inputs": [
+                        "data",
+                        "cleaning_rules",
+                        "transformation_steps"
                     ]
                 }
             ],
@@ -67,6 +82,11 @@
                         "few-shot",
                         "examples",
                         "learning"
+                    ],
+                    "inputs": [
+                        "task_description",
+                        "number_of_examples",
+                        "example_format"
                     ]
                 }
             ],
@@ -85,6 +105,11 @@
                         "access-control",
                         "gateway",
                         "security"
+                    ],
+                    "inputs": [
+                        "request_type",
+                        "user_credentials",
+                        "resource_id"
                     ]
                 }
             ],
@@ -103,6 +128,11 @@
                         "guidelines",
                         "best-practices",
                         "advice"
+                    ],
+                    "inputs": [
+                        "topic",
+                        "context",
+                        "specific_requirements"
                     ]
                 }
             ],
@@ -121,6 +151,11 @@
                         "nlq",
                         "query",
                         "reconstruction"
+                    ],
+                    "inputs": [
+                        "input_format",
+                        "query_elements",
+                        "context"
                     ]
                 }
             ],
@@ -139,6 +174,11 @@
                         "sql",
                         "database",
                         "query"
+                    ],
+                    "inputs": [
+                        "natural_language_query",
+                        "database_schema",
+                        "query_type"
                     ]
                 }
             ],
@@ -157,6 +197,11 @@
                         "nlp",
                         "sentiment-analysis",
                         "emotion-detection"
+                    ],
+                    "inputs": [
+                        "text",
+                        "analysis_depth",
+                        "emotion_categories"
                     ]
                 }
             ],
@@ -175,6 +220,9 @@
                         "summarize",
                         "text",
                         "content"
+                    ],
+                    "inputs": [
+                        "text"
                     ]
                 }
             ],
@@ -193,6 +241,9 @@
                         "nlq",
                         "sql",
                         "text2sql"
+                    ],
+                    "inputs": [
+                        "userInput"
                     ]
                 }
             ],
@@ -211,6 +262,10 @@
                         "translate",
                         "language",
                         "multilingual"
+                    ],
+                    "inputs": [
+                        "text",
+                        "target_language"
                     ]
                 }
             ],

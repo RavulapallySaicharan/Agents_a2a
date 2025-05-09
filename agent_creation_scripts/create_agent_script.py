@@ -69,7 +69,7 @@ def create_agent_file(
     """
     # Convert agent name to proper filename format
     filename = f"{agent_name.lower().replace(' ', '_')}_agent.py"
-    agents_dir = Path("agent_creation_scripts")
+    agents_dir = Path("agents")
     file_path = agents_dir / filename
     
     # Check if file exists and handle accordingly
@@ -157,7 +157,7 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
             prompt = f"Goal: {{self.goal}}\\n\\nInputs: {{inputs}}\\n\\nPlease process these inputs according to the goal."
             
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model=os.getenv("OPENAI_MODEL", "o4-mini-2025-04-16"),,
                 messages=[
                     {{"role": "system", "content": f"You are an AI agent with the following goal: {{self.goal}}"}},
                     {{"role": "user", "content": prompt}}
@@ -261,7 +261,8 @@ if __name__ == "__main__":
             {
                 "name": agent_name,
                 "description": agent_description,
-                "tags": agent_tags or []
+                "tags": agent_tags or [],
+                "inputs": agent_inputs or ["text"]
             }
         ]
     }

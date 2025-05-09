@@ -75,7 +75,7 @@ class SentimentAnalyzerAgent(A2AServer):
             prompt = f"Goal: {self.goal}\n\nInputs: {inputs}\n\nPlease process these inputs according to the goal."
             
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model=os.getenv("OPENAI_MODEL", "o4-mini-2025-04-16"),,
                 messages=[
                     {"role": "system", "content": f"You are an AI agent with the following goal: {self.goal}"},
                     {"role": "user", "content": prompt}
