@@ -212,7 +212,7 @@ load_dotenv()
         
         try:
             response = self.client.chat.completions.create(
-                model="gpt4-omni",
+                model="o4-mini-2025-04-16",
                 messages=[
                     {{"role": "system", "content": prompt}},
                     {{"role": "user", "content": query}}

@@ -47,7 +47,7 @@ class TranslatorAgent(A2AServer):
         """Translate the provided text to the target language using OpenAI API."""
         try:
             response = self.client.chat.completions.create(
-                model="gpt4-omni",
+                model="o4-mini-2025-04-16",
                 messages=[
                     {"role": "system", "content": "You are a helpful translator assistant."},
                     {"role": "user", "content": f"Translate the following text to {target_language}:\n\n{text}"}
@@ -103,8 +103,7 @@ class TranslatorAgent(A2AServer):
         task.artifacts = [{
             "parts": [{
                 "type": "text",
-                "dataType": "data",
-                "message": translation
+                "text": translation
             }]
         }]
         task.status = TaskStatus(state=TaskState.COMPLETED)

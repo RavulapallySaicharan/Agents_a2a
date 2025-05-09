@@ -139,10 +139,10 @@ class AgentServerManager:
         port = str(agent_info["port"])
 
         if agent_name in self.running_agents:
-            logger.info(f"{agent_name} is already running")
+            logger.info(f"{agent_name} is already running on port {port}")
             return self.processes.get(agent_name)
 
-        logger.info(f"Starting {agent_name} Agent...")
+        logger.info(f"Starting {agent_name} Agent on port {port}...")
         try:
             process = subprocess.Popen(
                 [sys.executable, f"agents/{agent_file}"],
@@ -243,6 +243,13 @@ class AgentServerManager:
         try:
             # Start all agents from config
             self.start_all_agents()
+            
+            # Print running agents and their ports
+            config = self.load_config()
+            logger.info("\nCurrently running agents:")
+            for agent_info in config["agents"]:
+                if agent_info["name"] in self.running_agents:
+                    logger.info(f"- {agent_info['name']} running on port {agent_info['port']}")
             
             # Set up file watching
             event_handler = ConfigFileHandler(self)

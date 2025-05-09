@@ -54,14 +54,11 @@ class SentimentAnalyzerAgent(A2AServer):
             Dict containing API response
         """
         try:
-            print("-------------came to api call-------------------")
-            print(inputs)
-            print("--------------------------------")
             response = requests.post(self.url, json=inputs)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            return f"API call failed: {str(e)}"
+            return {"status": "error", "message": f"API call failed: {str(e)}"}
     
     def _call_llm(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -74,9 +71,6 @@ class SentimentAnalyzerAgent(A2AServer):
             Dict containing LLM response
         """
         try:
-            print("-------------came to llm call-------------------")
-            print(inputs)
-            print("--------------------------------")
             # Create a prompt based on the agent's goal and inputs
             prompt = f"Goal: {self.goal}\n\nInputs: {inputs}\n\nPlease process these inputs according to the goal."
             
@@ -87,12 +81,12 @@ class SentimentAnalyzerAgent(A2AServer):
                     {"role": "user", "content": prompt}
                 ]
             )
-            return response.choices[0].message.content
+            return {"status": "success", "result": response.choices[0].message.content}
         except Exception as e:
-            return f"LLM call failed: {str(e)}"
+            return {"status": "error", "message": f"LLM call failed: {str(e)}"}
     
     @skill(
-        name="sentiment_analysis",
+        name="Process Input",
         description="Analyzes text to determine sentiment and emotional tone",
         tags=['nlp', 'sentiment-analysis', 'emotion-detection']
     )
@@ -110,14 +104,14 @@ class SentimentAnalyzerAgent(A2AServer):
                     raise ValueError(f"Missing required input: {required_input}")
             
             # Choose between API call and LLM call based on URL availability
-            if self.url != "None":
+            if self.url:
                 result = self._call_api(kwargs)
             else:
                 result = self._call_llm(kwargs)
             
             return result
         except Exception as e:
-            return str(e)
+            return {"status": "error", "message": str(e)}
     
     def handle_task(self, task):
         """Handle incoming task requests."""
@@ -146,13 +140,13 @@ class SentimentAnalyzerAgent(A2AServer):
         
         # Process the input and make appropriate call
         result = self.process_input(**inputs)
-
         
         # Create response
         task.artifacts = [{
             "parts": [{
                 "type": "text",
-                "text": str(result)
+                "dataType": "data",
+                "message": str(result)
             }]
         }]
         task.status = TaskStatus(state=TaskState.COMPLETED)

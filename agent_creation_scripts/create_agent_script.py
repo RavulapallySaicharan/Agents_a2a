@@ -17,14 +17,7 @@ def update_config_json(agent_info: Dict[str, Any], config_path: Path) -> None:
     # Create config file if it doesn't exist
     if not config_path.exists():
         config = {
-            "agents": [],
-            "server_config": {
-                "host": "localhost",
-                "default_port": 5001,
-                "timeout": 30,
-                "max_retries": 3,
-                "log_level": "INFO"
-            }
+            "agents": []
         }
     else:
         # Read existing config
@@ -41,15 +34,17 @@ def update_config_json(agent_info: Dict[str, Any], config_path: Path) -> None:
         # Add new agent
         config["agents"].append(agent_info)
     
-    # Write updated config
+    # Sort agents by name for better readability
+    config["agents"].sort(key=lambda x: x["name"])
+    
+    # Write updated config with proper formatting
     with open(config_path, 'w') as f:
-        json.dump(config, f, indent=4)
+        json.dump(config, f, indent=4, sort_keys=True)
 
 def create_agent_file(
     agent_name: str,
     agent_url: Optional[str] = None,
     agent_inputs: List[str] = None,
-    agent_skills: List[str] = None,
     agent_description: str = None,
     agent_goal: str = None,
     agent_tags: Optional[List[str]] = None,
@@ -63,7 +58,6 @@ def create_agent_file(
         agent_name: Name of the agent (used for filename)
         agent_url: API or endpoint to be used by the agent (optional)
         agent_inputs: List of input variables or expected parameters
-        agent_skills: List of skills or tools the agent can use
         agent_description: Description of the agent's purpose
         agent_goal: Definition of what the agent aims to achieve
         agent_tags: Optional metadata tags for categorization
@@ -74,8 +68,8 @@ def create_agent_file(
         str: Path to the created file
     """
     # Convert agent name to proper filename format
-    filename = f"{agent_name.lower().replace(' ', '_')}.py"
-    agents_dir = Path("agents")
+    filename = f"{agent_name.lower().replace(' ', '_')}_agent.py"
+    agents_dir = Path("agent_creation_scripts")
     file_path = agents_dir / filename
     
     # Check if file exists and handle accordingly
@@ -131,7 +125,7 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
                 print(f"Failed to initialize Azure OpenAI client: {{str(azure_error)}}")
                 raise Exception("Failed to initialize any OpenAI client. Please check your API keys and configurations.")
     
-    def _call_api(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+    def _call_api(self, inputs: Dict[str, Any]) -> str:
         """
         Make API call to the configured endpoint.
         
@@ -139,16 +133,16 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
             inputs: Dictionary of input parameters
             
         Returns:
-            Dict containing API response
+            str: API response content
         """
         try:
             response = requests.post(self.url, json=inputs)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            return {{"status": "error", "message": f"API call failed: {{str(e)}}"}}
+            return f"API call failed: {str(e)}"
     
-    def _call_llm(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+    def _call_llm(self, inputs: Dict[str, Any]) -> str:
         """
         Make LLM call using OpenAI API.
         
@@ -156,26 +150,26 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
             inputs: Dictionary of input parameters
             
         Returns:
-            Dict containing LLM response
+            str: LLM response content
         """
         try:
             # Create a prompt based on the agent's goal and inputs
-            prompt = f"Goal: {{self.goal}}\\n\\nInputs: {{inputs}}\\n\\nPlease process these inputs according to the goal."
+            prompt = f"Goal: {self.goal}\n\nInputs: {inputs}\n\nPlease process these inputs according to the goal."
             
             response = self.client.chat.completions.create(
                 model="gpt-4",
                 messages=[
-                    {{"role": "system", "content": f"You are an AI agent with the following goal: {{self.goal}}"}},
-                    {{"role": "user", "content": prompt}}
+                    {"role": "system", "content": f"You are an AI agent with the following goal: {self.goal}"},
+                    {"role": "user", "content": prompt}
                 ]
             )
-            return {{"status": "success", "result": response.choices[0].message.content}}
+            return response.choices[0].message.content
         except Exception as e:
-            return {{"status": "error", "message": f"LLM call failed: {{str(e)}}"}}
+            return f"LLM call failed: {str(e)}"
     
     @skill(
-        name="Process Input",
-        description="Process the input data according to agent specifications",
+        name="{agent_name}",
+        description="{agent_description}",
         tags={agent_tags or []}
     )
     def process_input(self, **kwargs):
@@ -192,14 +186,14 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
                     raise ValueError(f"Missing required input: {{required_input}}")
             
             # Choose between API call and LLM call based on URL availability
-            if self.url:
+            if self.url != "None":
                 result = self._call_api(kwargs)
             else:
                 result = self._call_llm(kwargs)
             
             return result
         except Exception as e:
-            return {{"status": "error", "message": str(e)}}
+            return str(e)
     
     def handle_task(self, task):
         """Handle incoming task requests."""
@@ -233,8 +227,7 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
         task.artifacts = [{{
             "parts": [{{
                 "type": "text",
-                "dataType": "data",
-                "message": str(result)
+                "text": str(result)
             }}]
         }}]
         task.status = TaskStatus(state=TaskState.COMPLETED)
@@ -266,15 +259,14 @@ if __name__ == "__main__":
         "file": filename,
         "skills": [
             {
-                "name": skill.capitalize(),
-                "description": f"Skill for {skill.lower()}",
+                "name": agent_name,
+                "description": agent_description,
                 "tags": agent_tags or []
             }
-            for skill in (agent_skills or ["Process Input"])
         ]
     }
     
-    config_path = agents_dir / "config.json"
+    config_path = Path("agents") / "config.json"
     update_config_json(agent_info, config_path)
     
     return str(file_path)
@@ -287,7 +279,6 @@ def main():
     parser.add_argument("--name", required=True, help="Name of the agent")
     parser.add_argument("--url", help="API or endpoint URL (optional)")
     parser.add_argument("--inputs", required=True, nargs="+", help="List of input parameters")
-    parser.add_argument("--skills", required=True, nargs="+", help="List of agent skills")
     parser.add_argument("--description", required=True, help="Agent description")
     parser.add_argument("--goal", required=True, help="Agent goal")
     parser.add_argument("--tags", nargs="+", help="Optional metadata tags")
@@ -301,7 +292,6 @@ def main():
             agent_name=args.name,
             agent_url=args.url,
             agent_inputs=args.inputs,
-            agent_skills=args.skills,
             agent_description=args.description,
             agent_goal=args.goal,
             agent_tags=args.tags,
