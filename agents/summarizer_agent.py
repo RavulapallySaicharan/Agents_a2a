@@ -45,6 +45,8 @@ class SummarizerAgent(A2AServer):
     def summarize_text(self, text):
         """Summarize the provided text using OpenAI API."""
         try:
+            # print("----------------------------intput text------------------------------")
+            # print(text)
             response = self.client.chat.completions.create(
                 model="gpt4-omni",
                 messages=[
@@ -52,6 +54,10 @@ class SummarizerAgent(A2AServer):
                     {"role": "user", "content": f"Summarize the following text in a concise manner:\n\n{text}"}
                 ]
             )
+            # print("--------------got response from the openai------------------")
+            # print("------------------response--------------------")
+            # print(response.choices[0].message.content)
+            # print("-------------------finished agent -------------------")
             return response.choices[0].message.content
         except Exception as e:
             return f"Error generating summary: {str(e)}"
@@ -90,12 +96,12 @@ class SummarizerAgent(A2AServer):
         task.artifacts = [{
             "parts": [{
                 "type": "text",
-                "dataType": "data",
-                "message": summary
+                "text": summary
             }]
         }]
         task.status = TaskStatus(state=TaskState.COMPLETED)
-        
+        # print("------------------task before return--------------------------------")
+        # print(task)
         return task
 
 
