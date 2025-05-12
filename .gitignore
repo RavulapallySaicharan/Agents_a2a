@@ -1,4 +1,4 @@
 *pyc
 *.env
-*config.json
 agents/*
+agent_runner.log*

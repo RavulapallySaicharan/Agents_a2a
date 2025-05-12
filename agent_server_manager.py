@@ -11,15 +11,26 @@ CONFIG_PATH = "agents/config.json"
 LOG_FILE = "agent_runner.log"
 
 # Configure logging
-logging.basicConfig(filename=LOG_FILE, level=logging.INFO,
-                    format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+# Also log to console for easier debugging
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+logging.getLogger('').addHandler(console)
 
 # Store running agent file paths
 running_agents = {}
 
 def load_config():
-    with open(CONFIG_PATH, "r") as file:
-        return json.load(file)["agents"]
+    try:
+        with open(CONFIG_PATH, "r") as file:
+            return json.load(file)["agents"]
+    except Exception as e:
+        logging.error(f"Error loading config: {e}")
+        return []
 
 def run_agent(agent):
     file_path = os.path.join("agents", agent["file"])
@@ -36,16 +47,25 @@ def launch_all_agents(agents):
 
 class ConfigChangeHandler(FileSystemEventHandler):
     def on_modified(self, event):
-        if event.src_path.endswith(CONFIG_PATH):
-            logging.info("Detected change in config.json. Checking for new agents...")
+        # Convert both paths to absolute paths for comparison
+        abs_config_path = os.path.abspath(CONFIG_PATH)
+        abs_event_path = os.path.abspath(event.src_path)
+        
+        logging.info(f"File change detected: {abs_event_path}")
+        logging.info(f"Looking for changes in: {abs_config_path}")
+        
+        if abs_event_path == abs_config_path:
+            logging.info("Config file change detected!")
             try:
                 current_agents = load_config()
-                current_files = {agent["file"] for agent in current_agents}
+                current_files = {os.path.join("agents", agent["file"]) for agent in current_agents}
                 existing_files = set(running_agents.keys())
 
                 new_files = current_files - existing_files
+                logging.info(f"New files to start: {new_files}")
+                
                 for agent in current_agents:
-                    if agent["file"] in new_files:
+                    if os.path.join("agents", agent["file"]) in new_files:
                         run_agent(agent)
             except Exception as e:
                 logging.error(f"Failed to reload config: {e}")
@@ -53,9 +73,10 @@ class ConfigChangeHandler(FileSystemEventHandler):
 def watch_config():
     observer = Observer()
     handler = ConfigChangeHandler()
-    observer.schedule(handler, path=".", recursive=False)
+    # Watch the agents directory instead of root
+    observer.schedule(handler, path="agents", recursive=False)
     observer.start()
-    logging.info("Started watchdog to monitor config.json changes.")
+    logging.info(f"Started watchdog to monitor {CONFIG_PATH}")
     try:
         while True:
             time.sleep(1)
