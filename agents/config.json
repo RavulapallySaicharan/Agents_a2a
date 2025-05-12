@@ -208,7 +208,7 @@
         {
             "description": "Generates concise summaries of provided text content",
             "file": "summarizer_agent.py",
-            "name": "Summarizer Agent",
+            "name": "Summarizer",
             "port": 5003,
             "skills": [
                 {
@@ -224,7 +224,8 @@
                     ]
                 }
             ],
-            "version": "1.0.0"
+            "version": "1.0.0",
+            "uds_path": "/tmp/summarizer.sock"
         },
         {
             "description": "Creates sql from user nlq",

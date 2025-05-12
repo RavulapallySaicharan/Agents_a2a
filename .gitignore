@@ -1,4 +1,3 @@
 *pyc
 *.env
-agents/*
 agent_runner.log*

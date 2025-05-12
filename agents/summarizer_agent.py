@@ -2,6 +2,8 @@ from python_a2a import A2AServer, skill, agent, TaskStatus, TaskState
 import os
 from dotenv import load_dotenv
 import openai
+from base_agent import BaseAgent
+from typing import Dict, Any
 
 # Load environment variables from .env file
 load_dotenv()
@@ -113,4 +115,25 @@ if __name__ == "__main__":
     
     # Create and run the server
     agent = SummarizerAgent()
-    run_server(agent, port=port) 
+    run_server(agent, port=port)
+
+class SummarizerAgent(BaseAgent):
+    def __init__(self):
+        super().__init__("Summarizer")
+    
+    async def process_request(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        text = data.get("text", "")
+        if not text:
+            return {"error": "No text provided"}
+        
+        # Simple summarization logic - in a real agent, you'd use more sophisticated methods
+        words = text.split()
+        summary = " ".join(words[:min(50, len(words))]) + "..."
+        
+        return {
+            "original_length": len(words),
+            "summary": summary
+        }
+
+# Create the FastAPI app instance
+app = SummarizerAgent().app 
