@@ -1,3 +1,4 @@
 *pyc
 *.env
 agent_runner.log*
+temp_storage/*

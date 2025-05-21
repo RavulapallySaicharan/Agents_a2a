@@ -1,11 +1,16 @@
 from datetime import datetime, timedelta
+from python_a2a import Message, Conversation, MessageRole, TextContent
 import os
 import json
 import pandas as pd
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from uuid import UUID
 import shutil
 from pathlib import Path
+import fitz  # PyMuPDF
+import pytesseract
+from PIL import Image
+import io
 
 class SessionConfig:
     def __init__(self, base_dir: str = "temp_storage", max_age_hours: int = 4):
@@ -36,7 +41,8 @@ class SessionConfig:
                 "current_state": "initialized",
                 "metadata": {},
                 "files": [],
-                "dataframes": {}
+                "dataframes": {},
+                "conversation": Conversation()  # Initialize an empty conversation
             }
             with open(config_file, "w") as f:
                 json.dump(config, f, indent=2)
@@ -155,4 +161,129 @@ class SessionConfig:
         """Remove all session data."""
         if self.base_dir.exists():
             shutil.rmtree(self.base_dir)
-        self._ensure_base_dir() 
+        self._ensure_base_dir()
+
+    def add_conversation_message(self, session_id: UUID, message: Union[Message, Dict[str, Any]]) -> None:
+        """Add a message to the conversation history.
+        
+        Args:
+            session_id: The session ID
+            message: Either a python_a2a Message object or a dictionary with message details
+        """
+        config_file = self.get_session_dir(session_id) / "config.json"
+        if not config_file.exists():
+            self.create_session(session_id)
+            
+        with open(config_file, "r") as f:
+            config = json.load(f)
+            
+        # Convert dictionary to Message if needed
+        if isinstance(message, dict):
+            message = Message(
+                content=TextContent(text=message["content"]),
+                role=MessageRole.USER if message["role"] == "user" else MessageRole.AGENT
+            )
+
+        config["conversation"].add_message(message)
+        
+        config["last_updated"] = datetime.utcnow().isoformat()
+        
+        with open(config_file, "w") as f:
+            json.dump(config, f, indent=2)
+            
+    def get_conversation_history(self, session_id: UUID) -> List[Message]:
+        """Get the conversation history for a session as Message objects."""
+        config = self.get_session(session_id)
+        if not config:
+            return []
+            
+        messages = []
+        for msg in config.get("conversations", []):
+            message = Message(
+                content=TextContent(text=msg["content"]),
+                role=MessageRole.USER if msg["role"] == "user" else MessageRole.AGENT
+            )
+            messages.append(message)
+            
+        return messages
+
+    def process_pdf_file(self, session_id: UUID, file_path: str) -> str:
+        """Extract text from a PDF file and store it."""
+        session_dir = self.get_session_dir(session_id)
+        pdf_path = Path(file_path)
+        
+        # Extract text from PDF
+        text_content = []
+        with fitz.open(pdf_path) as doc:
+            for page in doc:
+                text_content.append(page.get_text())
+        
+        # Save extracted text
+        text_file = session_dir / f"{pdf_path.stem}_text.txt"
+        with open(text_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(text_content))
+            
+        return str(text_file)
+        
+    def process_image_file(self, session_id: UUID, file_path: str) -> str:
+        """Extract text from an image file using OCR and store it."""
+        session_dir = self.get_session_dir(session_id)
+        image_path = Path(file_path)
+        
+        # Extract text using OCR
+        image = Image.open(image_path)
+        text_content = pytesseract.image_to_string(image)
+        
+        # Save extracted text
+        text_file = session_dir / f"{image_path.stem}_text.txt"
+        with open(text_file, "w", encoding="utf-8") as f:
+            f.write(text_content)
+            
+        return str(text_file)
+        
+    def process_csv_file(self, session_id: UUID, file_path: str) -> str:
+        """Process a CSV file and store it as a DataFrame."""
+        session_dir = self.get_session_dir(session_id)
+        csv_path = Path(file_path)
+        
+        # Read CSV into DataFrame
+        df = pd.read_csv(csv_path)
+        
+        # Save DataFrame with unique name
+        df_name = f"df_{csv_path.stem}"
+        self.add_dataframe(session_id, df_name, df)
+        
+        return df_name
+
+    def process_file(self, session_id: UUID, file_path: str) -> Dict[str, Any]:
+        """Process a file based on its type and store the results."""
+        file_path = Path(file_path)
+        file_type = file_path.suffix.lower()
+        
+        result = {
+            "original_path": str(file_path),
+            "processed_at": datetime.utcnow().isoformat(),
+            "file_type": file_type
+        }
+        
+        try:
+            if file_type == ".pdf":
+                result["processed_path"] = self.process_pdf_file(session_id, str(file_path))
+                result["content_type"] = "text"
+            elif file_type in [".jpg", ".jpeg", ".png", ".bmp", ".tiff"]:
+                result["processed_path"] = self.process_image_file(session_id, str(file_path))
+                result["content_type"] = "text"
+            elif file_type == ".csv":
+                result["dataframe_name"] = self.process_csv_file(session_id, str(file_path))
+                result["content_type"] = "dataframe"
+            else:
+                raise ValueError(f"Unsupported file type: {file_type}")
+                
+            # Add file to session configuration
+            self.add_file_path(session_id, str(file_path), file_type[1:])  # Remove the dot from extension
+            
+            return result
+            
+        except Exception as e:
+            result["error"] = str(e)
+            return result 
