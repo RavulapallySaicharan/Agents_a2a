@@ -11,6 +11,8 @@ import fitz  # PyMuPDF
 import pytesseract
 from PIL import Image
 import io
+from langchain_openai import ChatOpenAI
+from langchain_experimental.agents import create_pandas_dataframe_agent
 
 class SessionConfig:
     def __init__(self, base_dir: str = "temp_storage", max_age_hours: int = 4):
@@ -42,7 +44,8 @@ class SessionConfig:
                 "metadata": {},
                 "files": [],
                 "dataframes": {},
-                "conversation": Conversation()  # Initialize an empty conversation
+                "conversation": Conversation(),  # Initialize an empty conversation
+                "dataset_descriptions": {}  # Store dataset descriptions
             }
             with open(config_file, "w") as f:
                 json.dump(config, f, indent=2)
@@ -101,8 +104,23 @@ class SessionConfig:
             return [f for f in files if f["type"] == file_type]
         return files
         
+    def get_dataset_description(self, df: pd.DataFrame) -> str:
+        """Get a description of the dataset using LangChain."""
+        try:
+            llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+            agent_executor = create_pandas_dataframe_agent(
+                llm,
+                df,
+                agent_type="tool-calling",
+                verbose=False
+            )
+            result = agent_executor.invoke({"input": "describe the dataframe"})
+            return result.get("output", "No description available")
+        except Exception as e:
+            return f"Error generating description: {str(e)}"
+
     def add_dataframe(self, session_id: UUID, name: str, df: pd.DataFrame) -> None:
-        """Add a DataFrame to the session configuration."""
+        """Add a DataFrame to the session configuration with its description."""
         config_file = self.get_session_dir(session_id) / "config.json"
         if not config_file.exists():
             self.create_session(session_id)
@@ -114,9 +132,13 @@ class SessionConfig:
         df_path = self.get_session_dir(session_id) / f"{name}.csv"
         df.to_csv(df_path, index=False)
         
+        # Get dataset description
+        description = self.get_dataset_description(df)
+        
         config["dataframes"][name] = {
             "path": str(df_path),
-            "added_at": datetime.utcnow().isoformat()
+            "added_at": datetime.utcnow().isoformat(),
+            "description": description
         }
         config["last_updated"] = datetime.utcnow().isoformat()
         
@@ -138,6 +160,18 @@ class SessionConfig:
             return None
             
         return pd.read_csv(df_path)
+        
+    def get_dataframe_description(self, session_id: UUID, name: str) -> Optional[str]:
+        """Get the description of a DataFrame."""
+        config = self.get_session(session_id)
+        if not config:
+            return None
+            
+        df_info = config["dataframes"].get(name)
+        if not df_info:
+            return None
+            
+        return df_info.get("description")
         
     def cleanup_old_sessions(self) -> None:
         """Remove sessions older than max_age."""
@@ -242,7 +276,7 @@ class SessionConfig:
         return str(text_file)
         
     def process_csv_file(self, session_id: UUID, file_path: str) -> str:
-        """Process a CSV file and store it as a DataFrame."""
+        """Process a CSV file and store it as a DataFrame with description."""
         session_dir = self.get_session_dir(session_id)
         csv_path = Path(file_path)
         

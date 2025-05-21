@@ -3,91 +3,86 @@ from runnable_config import SessionConfig
 from python_a2a import Message, Conversation, MessageRole, TextContent, A2AClient
 import os
 from pathlib import Path
+import pandas as pd
+from fastapi import FastAPI, UploadFile, File, HTTPException, Header, Depends
+from fastapi.responses import JSONResponse
+from typing import Optional, Dict, Any
+from uuid import UUID
+import uvicorn
+import shutil
+import json
+
+# Initialize FastAPI app
+app = FastAPI(title="Session Management API")
+
+# Initialize SessionConfig for a default session
+sessions = {"default": SessionConfig()}
+
+async def get_session_id(x_session_id: str = Header(..., description="Session ID in UUID format")) -> UUID:
+    """Validate and return session ID from header."""
+    try:
+        return UUID(x_session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
+
+@app.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    session_id: UUID = Depends(get_session_id)
+) -> Dict[str, Any]:
+    """Upload and process a file."""
+    try:
+        # Create session if it doesn't exist
+        if session_id not in sessions:
+            sessions[session_id] = SessionConfig()
+        
+        session_config = sessions[session_id]
+        session_config.create_session(session_id)
+        
+        # Create temporary file
+        temp_dir = Path("temp_uploads")
+        temp_dir.mkdir(exist_ok=True)
+        temp_path = temp_dir / file.filename
+        
+        try:
+            # Save uploaded file temporarily
+            with open(temp_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            
+            # Process the file
+            result = session_config.process_file(session_id, str(temp_path))
+            
+            # Add file to session configuration
+            session_config.add_file_path(session_id, str(temp_path), file.filename.split(".")[-1])
+            
+            return {
+                "status": "success",
+                "message": "File processed successfully",
+                "session_id": str(session_id),
+                "file_info": result
+            }
+            
+        finally:
+            # Clean up temporary file
+            if temp_path.exists():
+                temp_path.unlink()
+            if temp_dir.exists() and not any(temp_dir.iterdir()):
+                temp_dir.rmdir()
+                
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/get_config_info")
+def get_config_info(session_id: UUID) -> Dict[str, Any]:
+    """Get the configuration information for a session."""
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return sessions[session_id].get_session(session_id)
 
 def main():
-    # Create a new session
-    session_id = uuid4()
-    session_config = SessionConfig()
-    
-    print(f"Created new session with ID: {session_id}")
-    
-    # Example 1: Conversation Storage
-    print("\n=== Example 1: Storing Conversation ===")
-    
-    # Create a conversation
-    conversation = Conversation()
-    
-    # Add user message
-    user_message = Message(
-        content=TextContent(text="Can you help me analyze this data?"),
-        role=MessageRole.USER
-    )
-    conversation.add_message(user_message)
-    
-    # Store user message in session - using Message object directly
-    session_config.add_conversation_message(session_id, user_message)
-    
-    # Simulate bot response
-    bot_response = Message(
-        content=TextContent(text="I'd be happy to help analyze your data!"),
-        role=MessageRole.AGENT
-    )
-    conversation.add_message(bot_response)
-    
-    # Store bot response in session - using Message object directly
-    session_config.add_conversation_message(session_id, bot_response)
-    
-    # Retrieve and print conversation history
-    print("\nConversation History:")
-    history = session_config.get_conversation_history(session_id)
-    for msg in history:
-        print(f"{msg.role.value}: {msg.content.text}")
-    
-    # Example 2: File Processing
-    print("\n=== Example 2: Processing Files ===")
-    
-    # Create example files
-    example_dir = Path("example_files")
-    example_dir.mkdir(exist_ok=True)
-    
-    # Create a sample CSV file
-    csv_content = "name,age,city\nJohn,30,New York\nAlice,25,London"
-    csv_path = example_dir / "sample.csv"
-    with open(csv_path, "w") as f:
-        f.write(csv_content)
-    
-    # Create a sample text file for PDF simulation
-    pdf_content = "This is a sample PDF content.\nIt has multiple lines.\nFor demonstration purposes."
-    pdf_path = example_dir / "sample.pdf"
-    with open(pdf_path, "w") as f:
-        f.write(pdf_content)
-    
-    # Process CSV file
-    print("\nProcessing CSV file...")
-    csv_result = session_config.process_file(session_id, str(csv_path))
-    print(f"CSV Processing Result: {csv_result}")
-    
-    # Get the DataFrame
-    df = session_config.get_dataframe(session_id, csv_result["dataframe_name"])
-    print("\nDataFrame contents:")
-    print(df)
-    
-    # Process PDF file
-    print("\nProcessing PDF file...")
-    pdf_result = session_config.process_file(session_id, str(pdf_path))
-    print(f"PDF Processing Result: {pdf_result}")
-    
-    # List all files in the session
-    print("\nAll files in session:")
-    files = session_config.get_session_files(session_id)
-    for file in files:
-        print(f"- {file['path']} (type: {file['type']})")
-    
-    # Cleanup
-    print("\nCleaning up example files...")
-    for file in example_dir.glob("*"):
-        file.unlink()
-    example_dir.rmdir()
+    """Run the FastAPI application."""
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
 if __name__ == "__main__":
     main() 
