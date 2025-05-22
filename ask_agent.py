@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 from python_a2a import AgentNetwork, AIAgentRouter, Message, Conversation, MessageRole, TextContent, A2AClient
+from runnable_config import SessionConfig
 import openai
 import os
 import time
@@ -7,6 +8,7 @@ import requests
 import json
 import subprocess
 import sys
+from uuid import uuid4, UUID
 
 def load_agent_config():
     with open('agents/config.json', 'r') as f:
@@ -130,6 +132,13 @@ def format_inputs_for_agent(inputs):
     return formatted_inputs
 
 def main():
+    # Initialize session management
+    session_id = uuid4()
+    session_config = SessionConfig()
+    session_config.create_session(session_id)
+    
+    print(f"Created new session with ID: {session_id}")
+    
     # Load agent configuration
     config = load_agent_config()
     
@@ -167,9 +176,8 @@ def main():
             role=MessageRole.USER
         )
         
-        # Create a conversation
-        conversation = Conversation()
-        conversation.add_message(user_message)
+        # Add user message to session
+        session_config.add_conversation_message(session_id, user_message)
         
         try:
             # Print "thinking" indicator
@@ -180,7 +188,9 @@ def main():
             
             # Get the response by sending the message
             bot_response = client.send_message(user_message)
-            conversation.add_message(bot_response)
+            
+            # Add bot response to session
+            session_config.add_conversation_message(session_id, bot_response)
             
             # Calculate elapsed time
             elapsed_time = time.time() - start_time
@@ -188,11 +198,8 @@ def main():
             # Clear the "thinking" indicator
             print("\r" + " " * 30 + "\r", end="", flush=True)
             
-            # Extract the latest response
-            latest_response = conversation.messages[-1]
-            
             # Print the response with timing info
-            print(f"Agent ({elapsed_time:.2f}s): {latest_response.content.text}\n")
+            print(f"Agent ({elapsed_time:.2f}s): {bot_response.content.text}\n")
 
         except Exception as e:
             # Clear the "thinking" indicator
@@ -206,14 +213,21 @@ def main():
         print("Failed to start the agent. Please try again.")
         return
 
+    # Get conversation history from session
+    conversation_history = session_config.get_conversation_history(session_id)
+    
     # Print the full conversation summary at the end
     print("=================================================================")
-    print(conversation)
-    message_count = len(conversation.messages)
+    print(f"Session ID: {session_id}")
     print(f"\n=== Conversation Summary ===")
-    print(f"Total messages: {message_count}")
-    print(f"User messages: {sum(1 for m in conversation.messages if m.role == MessageRole.USER)}")
-    print(f"Assistant messages: {sum(1 for m in conversation.messages if m.role == MessageRole.AGENT)}")
+    print(f"Total messages: {len(conversation_history)}")
+    print(f"User messages: {sum(1 for m in conversation_history if m.role == MessageRole.USER)}")
+    print(f"Assistant messages: {sum(1 for m in conversation_history if m.role == MessageRole.AGENT)}")
+    
+    # Print conversation history
+    print("\n=== Conversation History ===")
+    for msg in conversation_history:
+        print(f"{msg.role.value}: {msg.content.text}")
 
 if __name__ == "__main__":
     main()

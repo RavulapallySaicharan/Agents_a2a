@@ -232,7 +232,7 @@ class SessionConfig:
             return []
             
         messages = []
-        for msg in config.get("conversations", []):
+        for msg in config.get("conversation", []):
             message = Message(
                 content=TextContent(text=msg["content"]),
                 role=MessageRole.USER if msg["role"] == "user" else MessageRole.AGENT

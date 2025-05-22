@@ -49,11 +49,17 @@ async def upload_file(
             with open(temp_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
             
+            print("file uploaded successfully.........")
+            
             # Process the file
             result = session_config.process_file(session_id, str(temp_path))
+
+            print("file processed successfully.........")
             
             # Add file to session configuration
             session_config.add_file_path(session_id, str(temp_path), file.filename.split(".")[-1])
+
+            print("file added to session configuration successfully.........")
             
             return {
                 "status": "success",
