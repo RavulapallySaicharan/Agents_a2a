@@ -44,7 +44,10 @@ class SessionConfig:
                 "metadata": {},
                 "files": [],
                 "dataframes": {},
-                "conversation": Conversation(),  # Initialize an empty conversation
+                "conversation": {
+                    "messages": [],
+                    "last_updated": datetime.utcnow().isoformat()
+                },
                 "dataset_descriptions": {}  # Store dataset descriptions
             }
             with open(config_file, "w") as f:
@@ -217,9 +220,22 @@ class SessionConfig:
                 content=TextContent(text=message["content"]),
                 role=MessageRole.USER if message["role"] == "user" else MessageRole.AGENT
             )
-
-        config["conversation"].add_message(message)
+            
+        # Add message to conversation
+        message_dict = {
+            "content": message.content.text,
+            "role": message.role.value,
+            "timestamp": datetime.utcnow().isoformat()
+        }
         
+        if "conversation" not in config:
+            config["conversation"] = {
+                "messages": [],
+                "last_updated": datetime.utcnow().isoformat()
+            }
+            
+        config["conversation"]["messages"].append(message_dict)
+        config["conversation"]["last_updated"] = datetime.utcnow().isoformat()
         config["last_updated"] = datetime.utcnow().isoformat()
         
         with open(config_file, "w") as f:
@@ -232,7 +248,8 @@ class SessionConfig:
             return []
             
         messages = []
-        for msg in config.get("conversation", []):
+        conversation = config.get("conversation", {})
+        for msg in conversation.get("messages", []):
             message = Message(
                 content=TextContent(text=msg["content"]),
                 role=MessageRole.USER if msg["role"] == "user" else MessageRole.AGENT
