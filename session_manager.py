@@ -9,6 +9,7 @@ class SessionManager:
         self._sessions: Dict[UUID, SessionConfig] = {}
         self._lock = threading.Lock()
         self.base_dir = base_dir
+        self.max_age_hours = max_age_hours
         self.max_age = timedelta(hours=max_age_hours)
         
     def get_session(self, session_id: UUID) -> Optional[SessionConfig]:
@@ -22,7 +23,7 @@ class SessionManager:
             if session_id not in self._sessions:
                 session_config = SessionConfig(
                     base_dir=f"{self.base_dir}/{session_id}",
-                    max_age_hours=self.max_age.hours
+                    max_age_hours=self.max_age_hours
                 )
                 self._sessions[session_id] = session_config
                 session_config.create_session(session_id)
