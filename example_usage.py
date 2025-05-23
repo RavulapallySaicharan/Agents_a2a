@@ -3,17 +3,17 @@ from fastapi.responses import JSONResponse
 from typing import Dict, Any
 from uuid import UUID
 import uvicorn
-from runnable_config import SessionConfig
+from session_manager import SessionManager
 from pathlib import Path
 import shutil
 
 app = FastAPI(
-    title="Simple Session Management API",
-    description="API for file upload and session information retrieval"
+    title="Multi-Session Management API",
+    description="API for managing multiple sessions with file upload and information retrieval"
 )
 
-# Initialize SessionConfig
-session_config = SessionConfig()
+# Initialize SessionManager
+session_manager = SessionManager()
 
 async def get_session_id(x_session_id: str = Header(..., description="Session ID in UUID format")) -> UUID:
     """Validate and return session ID from header."""
@@ -37,8 +37,8 @@ async def upload_file(
         Dict containing upload status and file information
     """
     try:
-        # Create session if it doesn't exist
-        session_config.create_session(session_id)
+        # Get or create session
+        session_config = session_manager.create_session(session_id)
         
         # Create temporary file
         temp_dir = Path("temp_uploads")
@@ -88,9 +88,13 @@ async def get_session_info(session_id: UUID) -> Dict[str, Any]:
         - Conversation history
     """
     try:
+        session_config = session_manager.get_session(session_id)
+        if not session_config:
+            raise HTTPException(status_code=404, detail="Session not found")
+            
         session = session_config.get_session(session_id)
         if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
+            raise HTTPException(status_code=404, detail="Session data not found")
             
         # Get DataFrame descriptions
         dataframes = {}
@@ -114,6 +118,35 @@ async def get_session_info(session_id: UUID) -> Dict[str, Any]:
             "files": session["files"],
             "dataframes": dataframes,
             "conversation": conversation
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/sessions")
+async def list_sessions() -> Dict[str, Dict]:
+    """Get information about all active sessions."""
+    try:
+        return session_manager.get_all_sessions()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/session/{session_id}")
+async def delete_session(session_id: UUID) -> Dict[str, Any]:
+    """Delete a session and its associated data."""
+    try:
+        session_config = session_manager.get_session(session_id)
+        if not session_config:
+            raise HTTPException(status_code=404, detail="Session not found")
+            
+        # Clean up session data
+        session_config.cleanup_all()
+        
+        # Remove session from manager
+        session_manager.cleanup_all()
+        
+        return {
+            "status": "success",
+            "message": f"Session {session_id} deleted successfully"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
