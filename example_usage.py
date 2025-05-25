@@ -235,7 +235,7 @@ async def ask_agent(
         Dict containing the agent's response and updated conversation history
     """
     try:
-        session_config = session_manager.get_session(session_id)
+        session_config = session_manager.create_session(session_id)
         if not session_config:
             raise HTTPException(status_code=404, detail="Session not found")
             
@@ -256,17 +256,20 @@ async def ask_agent(
         conversation_history = session_config.get_conversation_history(session_id)
         file_descriptions = session_config.get_file_descriptions(session_id)
         # get the name of the dataframe based on the conversation history and the file_descriptions
-        prompt = f"""Based on the conversation history and the file descriptions, fetch the name of the file that is relevant to the user's question? 
-                        
-                        Inputs:
-                        conversation history: {conversation_history},
-                        file descriptions: {file_descriptions}. 
-                        
-                        Instruction: 
-                        1. Just provide the name of the dataframe, don't provide any other text. 
-                        2. If you can't find the file that is relevant to the user's question, return None.
-                        3. Always prefer that latest file that is relevant to the user's question (you will have the context of the uploaded time of the file).
-                        4. If the user's question it self has the information need to do the task, then return the file name as None.
+        prompt = f"""You are an intelligent assistant that decides whether a file is needed to answer a user's question based on the conversation history and uploaded file descriptions.
+
+                Inputs:
+                - conversation history: {conversation_history}
+                - file descriptions: {file_descriptions}
+
+                Instruction:
+                1. First, determine if the user's question can be answered **without referring to any files**. If the user's input provides all necessary information (e.g., simple summarization, counting words, or evaluating a known phrase), then return `None`.
+                2. If a file is needed, select the **most recently uploaded file** that is **relevant** to the user's question based on the file descriptions and context.
+                3. Only return the **name of the relevant file or `None`**. Do not include any other text or explanation.
+                4. Be strict — only select a file if it is clearly required to perform the task.
+
+                Return:
+                - Just the name of the file (e.g., `document1`) or `None`.
                 """
         response = llm.invoke(prompt)
         file_name = response.content.split(".")[0]
