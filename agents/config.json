@@ -1,144 +1,7 @@
 {
     "agents": [
         {
-            "description": "Performs data analysis and generates insights",
-            "file": "data_analysis_agent.py",
-            "name": "Data Analysis Agent",
-            "port": 5009,
-            "skills": [
-                {
-                    "description": "Analyze data and generate insights",
-                    "inputs": [
-                        "data",
-                        "analysis_type",
-                        "parameters"
-                    ],
-                    "name": "Analyze Data",
-                    "tags": [
-                        "analysis",
-                        "data",
-                        "insights"
-                    ]
-                }
-            ],
-            "version": "1.0.0"
-        },
-        {
-            "description": "Creates visualizations from data",
-            "file": "data_visualization_agent.py",
-            "name": "Data Visualization Agent",
-            "port": 5010,
-            "skills": [
-                {
-                    "description": "Generate visualizations from provided data",
-                    "inputs": [
-                        "data",
-                        "chart_type",
-                        "visualization_options"
-                    ],
-                    "name": "Create Visualization",
-                    "tags": [
-                        "visualization",
-                        "charts",
-                        "graphs"
-                    ]
-                }
-            ],
-            "version": "1.0.0"
-        },
-        {
-            "description": "Cleans and transforms data for analysis",
-            "file": "data_wrangling_agent.py",
-            "name": "Data Wrangling Agent",
-            "port": 5011,
-            "skills": [
-                {
-                    "description": "Clean and transform data for analysis",
-                    "inputs": [
-                        "data",
-                        "cleaning_rules",
-                        "transformation_steps"
-                    ],
-                    "name": "Wrangle Data",
-                    "tags": [
-                        "data-cleaning",
-                        "transformation",
-                        "preprocessing"
-                    ]
-                }
-            ],
-            "version": "1.0.0"
-        },
-        {
-            "description": "Generates dynamic few-shot examples for various tasks",
-            "file": "dynamic_fewshots_agent.py",
-            "name": "Dynamic Fewshots Agent",
-            "port": 5006,
-            "skills": [
-                {
-                    "description": "Create dynamic few-shot examples for specified tasks",
-                    "inputs": [
-                        "task_description",
-                        "number_of_examples",
-                        "example_format"
-                    ],
-                    "name": "Generate Examples",
-                    "tags": [
-                        "few-shot",
-                        "examples",
-                        "learning"
-                    ]
-                }
-            ],
-            "version": "1.0.0"
-        },
-        {
-            "description": "Controls and manages access to other agents and services",
-            "file": "gating_agent.py",
-            "name": "Gating Agent",
-            "port": 5007,
-            "skills": [
-                {
-                    "description": "Manage and control access to agents and services",
-                    "inputs": [
-                        "request_type",
-                        "user_credentials",
-                        "resource_id"
-                    ],
-                    "name": "Control Access",
-                    "tags": [
-                        "access-control",
-                        "gateway",
-                        "security"
-                    ]
-                }
-            ],
-            "version": "1.0.0"
-        },
-        {
-            "description": "Reconstructs natural language queries from various inputs",
-            "file": "nlq_reconstruction_agent.py",
-            "name": "NLQ Reconstruction Agent",
-            "port": 5008,
-            "skills": [
-                {
-                    "description": "Convert various inputs into natural language queries",
-                    "inputs": [
-                        "input_format",
-                        "query_elements",
-                        "context"
-                    ],
-                    "name": "Reconstruct Query",
-                    "tags": [
-                        "nlq",
-                        "query",
-                        "reconstruction"
-                    ]
-                }
-            ],
-            "version": "1.0.0"
-        },
-        {
+            "agent_flag": "product_description_generator_agent",
             "description": "Generates compelling product descriptions for e-commerce listings",
             "file": "product_description_generator_agent.py",
             "name": "Product Description Generator",
@@ -162,29 +25,7 @@
             "version": "1.0.0"
         },
         {
-            "description": "Generates SQL queries based on natural language input",
-            "file": "sql_generation_agent.py",
-            "name": "SQL Generation Agent",
-            "port": 5005,
-            "skills": [
-                {
-                    "description": "Convert natural language to SQL queries",
-                    "inputs": [
-                        "natural_language_query",
-                        "database_schema",
-                        "query_type"
-                    ],
-                    "name": "Generate SQL",
-                    "tags": [
-                        "sql",
-                        "database",
-                        "query"
-                    ]
-                }
-            ],
-            "version": "1.0.0"
-        },
-        {
+            "agent_flag": "sentiment_analyzer_agent",
             "description": "Analyzes text to determine sentiment and emotional tone",
             "file": "sentiment_analyzer_agent.py",
             "name": "Sentiment Analyzer",
@@ -206,65 +47,22 @@
             "version": "1.0.0"
         },
         {
-            "description": "Generates concise summaries of provided text content",
+            "agent_flag": "summarizer_agent",
+            "description": "Summarizes text",
             "file": "summarizer_agent.py",
             "name": "Summarizer",
-            "port": 5003,
+            "port": 5015,
             "skills": [
                 {
-                    "description": "Create a concise summary of the provided text",
+                    "description": "Summarizes text",
                     "inputs": [
                         "text"
                     ],
-                    "name": "Summarize Text",
+                    "name": "Summarizer",
                     "tags": [
-                        "summarize",
-                        "text",
-                        "content"
-                    ]
-                }
-            ],
-            "version": "1.0.0",
-            "uds_path": "/tmp/summarizer.sock"
-        },
-        {
-            "description": "Creates sql from user nlq",
-            "file": "text2sql_agent.py",
-            "name": "Text2SQL",
-            "port": 5012,
-            "skills": [
-                {
-                    "description": "Creates sql from user nlq",
-                    "inputs": [
-                        "userInput"
-                    ],
-                    "name": "Text2SQL",
-                    "tags": [
-                        "nlq",
-                        "sql",
-                        "text2sql"
-                    ]
-                }
-            ],
-            "version": "1.0.0"
-        },
-        {
-            "description": "Translates text into specified target languages using OpenAI API",
-            "file": "translator_agent.py",
-            "name": "Translator Agent",
-            "port": 5002,
-            "skills": [
-                {
-                    "description": "Translate text to a specified target language",
-                    "inputs": [
-                        "text",
-                        "target_language"
-                    ],
-                    "name": "Translate Text",
-                    "tags": [
-                        "translate",
-                        "language",
-                        "multilingual"
+                        "summarization",
+                        "text-summary",
+                        "summary"
                     ]
                 }
             ],

@@ -257,6 +257,7 @@ if __name__ == "__main__":
         "name": agent_name,
         "description": agent_description,
         "version": "1.0.0",
+        "agent_flag": agent_name.lower().replace(' ', '_') + "_agent",
         "port": agent_port,
         "file": filename,
         "skills": [

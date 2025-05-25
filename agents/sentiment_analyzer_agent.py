@@ -10,18 +10,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 @agent(
-    name="Summarizer",
-    description="Summarizes text",
+    name="Sentiment Analyzer",
+    description="Analyzes text to determine sentiment and emotional tone",
     version="1.0.0"
 )
-class SummarizerAgent(A2AServer):
+class SentimentAnalyzerAgent(A2AServer):
     
     def __init__(self):
         super().__init__()
         self.url = "None"
-        self.goal = "Create a concise summary of the given text"
-        self.tags = ['summarization', 'text-summary', 'summary']
-        self.port = 5015
+        self.goal = "Provide accurate sentiment analysis and emotional insights from text"
+        self.tags = ['nlp', 'sentiment-analysis', 'emotion-detection']
+        self.port = 5013
         self.client = self._initialize_openai_client()
     
     def _initialize_openai_client(self):
@@ -87,9 +87,9 @@ class SummarizerAgent(A2AServer):
             return f"LLM call failed: {str(e)}"
     
     @skill(
-        name="Summarizer",
-        description="Summarizes text",
-        tags=['summarization', 'text-summary', 'summary']
+        name="Sentiment Analyzer",
+        description="Analyzes text to determine sentiment and emotional tone",
+        tags=['nlp', 'sentiment-analysis', 'emotion-detection']
     )
     def process_input(self, **kwargs):
         """
@@ -159,8 +159,8 @@ if __name__ == "__main__":
     from python_a2a import run_server
     
     # Get port from environment or use the configured port
-    port = int(os.getenv("AGENT_PORT", 5015))
+    port = int(os.getenv("AGENT_PORT", 5013))
     
     # Create and run the server
-    agent = SummarizerAgent()
+    agent = SentimentAnalyzerAgent()
     run_server(agent, port=port)

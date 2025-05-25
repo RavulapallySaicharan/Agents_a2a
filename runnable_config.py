@@ -178,6 +178,7 @@ class SessionConfig:
         df_path = Path(df_info["path"])
         if not df_path.exists():
             return None
+        
             
         return pd.read_csv(df_path)
         
@@ -237,14 +238,15 @@ class SessionConfig:
                 content=TextContent(text=message["content"]),
                 role=MessageRole.USER if message["role"] == "user" else MessageRole.AGENT
             )
-            
+        
         # Add message to conversation
         message_dict = {
             "content": message.content.text,
             "role": message.role.value,
             "timestamp": datetime.utcnow().isoformat()
         }
-        
+
+
         if "conversation" not in config:
             config["conversation"] = {
                 "messages": [],
@@ -287,7 +289,7 @@ class SessionConfig:
                 text_content.append(page.get_text())
         
         # Save extracted text
-        text_file = session_dir / f"{pdf_path.stem}_text.txt"
+        text_file = session_dir / f"{pdf_path.stem}.txt"
         with open(text_file, "w", encoding="utf-8") as f:
             f.write("\n".join(text_content))
             
@@ -318,7 +320,7 @@ class SessionConfig:
         df = pd.read_csv(csv_path)
         
         # Save DataFrame with unique name
-        df_name = f"df_{csv_path.stem}"
+        df_name = f"{csv_path.stem}"
         self.add_dataframe(session_id, df_name, df)
         
         return df_name

@@ -1,8 +1,10 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Header, Depends, Query
 from fastapi.responses import JSONResponse
+from python_a2a import AgentNetwork, AIAgentRouter, Message, Conversation, MessageRole, TextContent, A2AClient
 from typing import Dict, Any
 from uuid import UUID
 import uvicorn
+import json
 from session_manager import SessionManager
 from pathlib import Path
 import shutil
@@ -10,7 +12,7 @@ from python_a2a import Message, MessageRole, TextContent
 from langchain_experimental.agents import create_pandas_dataframe_agent
 from langchain_openai import ChatOpenAI
 from contextlib import asynccontextmanager
-
+from pydantic import BaseModel
 # Initialize SessionManager
 session_manager = SessionManager()
 
@@ -38,6 +40,44 @@ async def get_session_id(x_session_id: str = Header(..., description="Session ID
         return UUID(x_session_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid session ID format")
+
+
+class AgentRequest(BaseModel):
+    agent_flag: str
+    inputs: Dict[str, Any]
+
+def load_agent_config():
+    with open('agents/config.json', 'r') as f:
+        return json.load(f)
+
+
+def get_agent_url(port):
+    return f"http://localhost:{port}"
+
+
+def create_agent_inputs(message, session_id, conversation_history, file_name):
+    """Collect all required inputs for the selected agent based on its configuration."""
+    inputs = {}
+    inputs["text"] = message
+    inputs["session_id"] = str(session_id)
+    conversation = []
+    for each in conversation_history:
+        if each.role == MessageRole.USER:
+            conversation.append({"role": "user", "content": each.content.text})
+        elif each.role == MessageRole.AGENT:
+            conversation.append({"role": "agent", "content": each.content.text})
+    inputs["conversation_history"] = conversation
+    inputs["file_name"] = file_name
+    return json.dumps(inputs, indent=2)
+
+
+def display_available_agents(config):
+    """Display all available agents."""
+    output = []
+    for idx, agent in enumerate(config['agents'], 1):
+        output.append(agent['agent_flag'])
+    return output
+
 
 @app.post("/upload")
 async def upload_file(
@@ -86,6 +126,7 @@ async def upload_file(
                 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/session/{session_id}")
 async def get_session_info(session_id: UUID) -> Dict[str, Any]:
@@ -137,6 +178,7 @@ async def get_session_info(session_id: UUID) -> Dict[str, Any]:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/sessions")
 async def list_sessions() -> Dict[str, Dict]:
     """Get information about all active sessions."""
@@ -144,6 +186,7 @@ async def list_sessions() -> Dict[str, Dict]:
         return session_manager.get_all_sessions()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.delete("/session/{session_id}")
 async def delete_session(session_id: UUID) -> Dict[str, Any]:
@@ -165,6 +208,16 @@ async def delete_session(session_id: UUID) -> Dict[str, Any]:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/discoverable_agents")
+async def discoverable_agents() -> list[str]:
+    """Get all discoverable agents."""
+        # Load agent configuration
+    config = load_agent_config()
+    
+    # Display available agents
+    return display_available_agents(config)
 
 @app.post("/ask_agent")
 async def ask_agent(
@@ -197,30 +250,57 @@ async def ask_agent(
         
         # TODO: Add actual agent processing logic here
         # For now, we'll just echo back a simple response
-        # agent_response = f"Echo: {message}"
-        if agent_flag == "eda_agent":
-            # get the name of the dataframe based on the conversation history and the file_descriptions
-            llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
-            conversation_history = session_config.get_conversation_history(session_id)
-            file_descriptions = session_config.get_file_descriptions(session_id)
-            # get the name of the dataframe based on the conversation history and the file_descriptions
-            prompt = f"Based on the conversation history and the file descriptions, what is the name of the dataframe? conversation history: {conversation_history}, file descriptions: {file_descriptions}. Instruction: Just provide the name of the dataframe, don't provide any other text."
-            response = llm.invoke(prompt)
-            print("-------------------------------------")
-            print("response:")
-            print(response.content)
-            print("-------------------------------------")
 
+        # get the name of the dataframe based on the conversation history and the file_descriptions
+        llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+        conversation_history = session_config.get_conversation_history(session_id)
+        file_descriptions = session_config.get_file_descriptions(session_id)
+        # get the name of the dataframe based on the conversation history and the file_descriptions
+        prompt = f"""Based on the conversation history and the file descriptions, fetch the name of the file that is relevant to the user's question? 
+                        
+                        Inputs:
+                        conversation history: {conversation_history},
+                        file descriptions: {file_descriptions}. 
+                        
+                        Instruction: 
+                        1. Just provide the name of the dataframe, don't provide any other text. 
+                        2. If you can't find the file that is relevant to the user's question, return None.
+                        3. Always prefer that latest file that is relevant to the user's question (you will have the context of the uploaded time of the file).
+                        4. If the user's question it self has the information need to do the task, then return the file name as None.
+                """
+        response = llm.invoke(prompt)
+        file_name = response.content.split(".")[0]
 
-            df = session_config.get_dataframe(session_id, "df_" + response.content)
-            agent = create_pandas_dataframe_agent(llm, df, agent_type="tool-calling", verbose=True, allow_dangerous_code=True)
-            agent_response = agent.invoke({"input": message})
+        print("file name :", file_name)
+
+        # Load agent configuration
+        config = load_agent_config()
+
+        discoverable_agents = display_available_agents(config)
+
+        # check if the agent_flag is in the config
+        if agent_flag in discoverable_agents:
+            selected_agent = config['agents'][discoverable_agents.index(agent_flag)]
+            agent_url = get_agent_url(selected_agent['port'])
+            client = A2AClient(agent_url)
         else:
-            agent_response = f"Echo: {message}"
+            raise HTTPException(status_code=400, detail="Invalid agent flag")
+        
+        # Collect all required inputs for the agent
+        agent_inputs = create_agent_inputs(message, session_id, conversation_history, file_name)
+
+        # Create a message with the formatted inputs
+        user_message = Message(
+            content=TextContent(text=agent_inputs),
+            role=MessageRole.USER
+        )
+
+        # get the response from the agent
+        agent_response = client.send_message(user_message)
         
         # Create agent message
         agent_message = Message(
-            content=TextContent(text=agent_response),
+            content=TextContent(text=agent_response.content.text),
             role=MessageRole.AGENT
         )
         
@@ -231,21 +311,13 @@ async def ask_agent(
         conversation_history = session_config.get_conversation_history(session_id)
         
         return {
-            "status": "success",
-            "session_id": str(session_id),
-            "response": agent_response,
-            "conversation_history": [
-                {
-                    "role": msg.role.value,
-                    "content": msg.content.text,
-                    "timestamp": msg.timestamp if hasattr(msg, 'timestamp') else None
-                }
-                for msg in conversation_history
-            ]
+            "dataType": "data",
+            "message": agent_response.content.text
         }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000) 

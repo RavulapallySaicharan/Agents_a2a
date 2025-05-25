@@ -10,18 +10,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 @agent(
-    name="Summarizer",
-    description="Summarizes text",
+    name="Product Description Generator",
+    description="Generates compelling product descriptions for e-commerce listings",
     version="1.0.0"
 )
-class SummarizerAgent(A2AServer):
+class ProductDescriptionGeneratorAgent(A2AServer):
     
     def __init__(self):
         super().__init__()
         self.url = "None"
-        self.goal = "Create a concise summary of the given text"
-        self.tags = ['summarization', 'text-summary', 'summary']
-        self.port = 5015
+        self.goal = "Create persuasive and SEO-friendly product descriptions using given product data"
+        self.tags = ['ecommerce', 'copywriting', 'product-description']
+        self.port = 5014
         self.client = self._initialize_openai_client()
     
     def _initialize_openai_client(self):
@@ -87,9 +87,9 @@ class SummarizerAgent(A2AServer):
             return f"LLM call failed: {str(e)}"
     
     @skill(
-        name="Summarizer",
-        description="Summarizes text",
-        tags=['summarization', 'text-summary', 'summary']
+        name="Product Description Generator",
+        description="Generates compelling product descriptions for e-commerce listings",
+        tags=['ecommerce', 'copywriting', 'product-description']
     )
     def process_input(self, **kwargs):
         """
@@ -101,7 +101,7 @@ class SummarizerAgent(A2AServer):
         try:
             # Validate required inputs
             kwargs = json.loads(kwargs["text"])
-            for required_input in ['text']:
+            for required_input in ['product_name', 'features', 'category']:
                 if required_input not in kwargs:
                     raise ValueError(f"Missing required input: {required_input}")
             
@@ -159,8 +159,8 @@ if __name__ == "__main__":
     from python_a2a import run_server
     
     # Get port from environment or use the configured port
-    port = int(os.getenv("AGENT_PORT", 5015))
+    port = int(os.getenv("AGENT_PORT", 5014))
     
     # Create and run the server
-    agent = SummarizerAgent()
+    agent = ProductDescriptionGeneratorAgent()
     run_server(agent, port=port)
