@@ -48,7 +48,7 @@ class SessionConfig:
                     "messages": [],
                     "last_updated": datetime.utcnow().isoformat()
                 },
-                "dataset_descriptions": {}  # Store dataset descriptions
+                "file_descriptions": {}  # Store descriptions for all file types
             }
             with open(config_file, "w") as f:
                 json.dump(config, f, indent=2)
@@ -107,20 +107,38 @@ class SessionConfig:
             return [f for f in files if f["type"] == file_type]
         return files
         
-    def get_dataset_description(self, df: pd.DataFrame) -> str:
-        """Get a description of the dataset using LangChain."""
+    def get_file_description(self, file_path: str, file_type: str) -> str:
+        """Get a description of the file using LangChain."""
         try:
             llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
-            agent_executor = create_pandas_dataframe_agent(
-                llm,
-                df,
-                agent_type="tool-calling",
-                verbose=False
-            )
-            result = agent_executor.invoke({"input": "describe the dataframe"})
-            return result.get("output", "No description available")
+            
+            if file_type == "csv":
+                df = pd.read_csv(file_path)
+                agent_executor = create_pandas_dataframe_agent(
+                    llm,
+                    df,
+                    agent_type="tool-calling",
+                    verbose=False,
+                    allow_dangerous_code=True
+                )
+                result = agent_executor.invoke({"input": "provide a brief description of the dataset"})
+                return result.get("output", "No description available")
+            else:
+                # For PDF and image files, read the extracted text
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                prompt = f"Provide a brief description of this {file_type} file content: {content[:1000]}"
+                response = llm.invoke(prompt)
+                return response.content
         except Exception as e:
             return f"Error generating description: {str(e)}"
+        
+    def get_file_descriptions(self, session_id: UUID) -> Dict[str, Any]:
+        """Get the file descriptions for a session."""
+        config = self.get_session(session_id)
+        if not config:
+            return {}
+        return config.get("file_descriptions", {})
 
     def add_dataframe(self, session_id: UUID, name: str, df: pd.DataFrame) -> None:
         """Add a DataFrame to the session configuration with its description."""
@@ -136,12 +154,11 @@ class SessionConfig:
         df.to_csv(df_path, index=False)
         
         # Get dataset description
-        description = self.get_dataset_description(df)
+        description = self.get_file_description(str(df_path), "csv")
         
         config["dataframes"][name] = {
             "path": str(df_path),
-            "added_at": datetime.utcnow().isoformat(),
-            "description": description
+            "added_at": datetime.utcnow().isoformat()
         }
         config["last_updated"] = datetime.utcnow().isoformat()
         
@@ -309,7 +326,7 @@ class SessionConfig:
     def process_file(self, session_id: UUID, file_path: str) -> Dict[str, Any]:
         """Process a file based on its type and store the results."""
         file_path = Path(file_path)
-        file_type = file_path.suffix.lower()
+        file_type = file_path.suffix.lower()[1:]  # Remove the dot
         
         result = {
             "original_path": str(file_path),
@@ -318,20 +335,34 @@ class SessionConfig:
         }
         
         try:
-            if file_type == ".pdf":
-                result["processed_path"] = self.process_pdf_file(session_id, str(file_path))
+            processed_path = None
+            if file_type == "pdf":
+                processed_path = self.process_pdf_file(session_id, str(file_path))
                 result["content_type"] = "text"
-            elif file_type in [".jpg", ".jpeg", ".png", ".bmp", ".tiff"]:
-                result["processed_path"] = self.process_image_file(session_id, str(file_path))
+            elif file_type in ["jpg", "jpeg", "png", "bmp", "tiff"]:
+                processed_path = self.process_image_file(session_id, str(file_path))
                 result["content_type"] = "text"
-            elif file_type == ".csv":
-                result["dataframe_name"] = self.process_csv_file(session_id, str(file_path))
+            elif file_type == "csv":
+                df_name = self.process_csv_file(session_id, str(file_path))
+                result["dataframe_name"] = df_name
                 result["content_type"] = "dataframe"
+                processed_path = str(self.get_session_dir(session_id) / f"{df_name}.csv")
             else:
                 raise ValueError(f"Unsupported file type: {file_type}")
                 
             # Add file to session configuration
-            self.add_file_path(session_id, str(file_path), file_type[1:])  # Remove the dot from extension
+            self.add_file_path(session_id, str(file_path), file_type)
+            
+            # Generate and store file description
+            if processed_path:
+                description = self.get_file_description(processed_path, file_type)
+                config = self.get_session(session_id)
+                if config:
+                    config["file_descriptions"][str(file_path)] = {
+                        "description": description,
+                        "added_at": datetime.utcnow().isoformat()
+                    }
+                    self.update_context(session_id, config)
             
             return result
             
