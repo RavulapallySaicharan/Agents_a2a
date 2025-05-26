@@ -87,6 +87,13 @@ import openai
 import json
 from typing import Dict, Any
 from dotenv import load_dotenv
+import sys
+from pathlib import Path
+
+# Add the parent directory to the Python path
+sys.path.append(str(Path(__file__).parent.parent))
+from session_manager import SessionManager
+from uuid import UUID
 
 # Load environment variables from .env file
 load_dotenv()
@@ -105,6 +112,7 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
         self.tags = {agent_tags or []}
         self.port = {agent_port}
         self.client = self._initialize_openai_client()
+        self.session_manager = SessionManager()
     
     def _initialize_openai_client(self):
         """Initialize OpenAI client with fallback to Azure OpenAI."""
@@ -126,6 +134,32 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
                 print(f"Failed to initialize Azure OpenAI client: {{str(azure_error)}}")
                 raise Exception("Failed to initialize any OpenAI client. Please check your API keys and configurations.")
     
+    def _get_file_content(self, session_id: str, file_name: str) -> str:
+        """Get the content of a file from the session."""
+        try:
+            session_config = self.session_manager.get_session(UUID(session_id))
+            if not session_config:
+                return None
+                
+            # Get the file path from session
+            session = session_config.get_session(UUID(session_id))
+            if not session:
+                return None
+                
+            # Find the file in the session's files
+            file_info = next((f for f in session.get("files", []) if f["path"].split("/")[-1].startswith(file_name)), None)
+            if not file_info:
+                return None
+                
+            # Read the file content
+            file_path = file_info["path"]
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+                
+        except Exception as e:
+            print(f"Error reading file: {{str(e)}}")
+            return None
+    
     def _call_api(self, inputs: Dict[str, Any]) -> str:
         """
         Make API call to the configured endpoint.
@@ -137,6 +171,12 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
             str: API response content
         """
         try:
+            # Get file content if file_name is provided
+            if inputs.get("file_name") and inputs.get("file_name") != "None":
+                file_content = self._get_file_content(inputs.get("session_id"), inputs.get("file_name"))
+                if file_content:
+                    inputs["file_content"] = file_content
+            
             response = requests.post(self.url, json=inputs)
             response.raise_for_status()
             return response.json()
@@ -154,8 +194,19 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
             str: LLM response content
         """
         try:
+            # Get file content if file_name is provided
+            file_content = None
+            if inputs.get("file_name") and inputs.get("file_name") != "None":
+                file_content = self._get_file_content(inputs.get("session_id"), inputs.get("file_name"))
+            
             # Create a prompt based on the agent's goal and inputs
-            prompt = f"Goal: {{self.goal}}\\n\\nInputs: {{inputs}}\\n\\nPlease process these inputs according to the goal."
+            prompt = f"Goal: {{self.goal}}\\n\\n"
+            
+            if file_content:
+                prompt += f"File Content:\\n{{file_content}}\\n\\n"
+            
+            prompt += f"User Input: {{inputs.get('text', '')}}\\n\\n"
+            prompt += "Please process these inputs according to the goal."
             
             response = self.client.chat.completions.create(
                 model=os.getenv("OPENAI_MODEL", "o4-mini-2025-04-16"),
