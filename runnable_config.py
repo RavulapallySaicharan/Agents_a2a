@@ -47,8 +47,7 @@ class SessionConfig:
                 "conversation": {
                     "messages": [],
                     "last_updated": datetime.utcnow().isoformat()
-                },
-                "file_descriptions": {}  # Store descriptions for all file types
+                }
             }
             with open(config_file, "w") as f:
                 json.dump(config, f, indent=2)
@@ -77,7 +76,7 @@ class SessionConfig:
         with open(config_file, "w") as f:
             json.dump(config, f, indent=2)
             
-    def add_file_path(self, session_id: UUID, file_path: str, file_type: str) -> None:
+    def add_file_path(self, session_id: UUID, file_path: str, file_type: str, file_name: str) -> None:
         """Add a file path to the session configuration."""
         config_file = self.get_session_dir(session_id) / "config.json"
         if not config_file.exists():
@@ -86,11 +85,13 @@ class SessionConfig:
         with open(config_file, "r") as f:
             config = json.load(f)
             
-        config["files"].append({
+        config["files"].append({file_name : {
             "path": file_path,
             "type": file_type,
-            "added_at": datetime.utcnow().isoformat()
-        })
+            "added_at": datetime.utcnow().isoformat(),
+            "description": None,
+            "file_data": None
+        }})
         config["last_updated"] = datetime.utcnow().isoformat()
         
         with open(config_file, "w") as f:
@@ -329,6 +330,7 @@ class SessionConfig:
         """Process a file based on its type and store the results."""
         file_path = Path(file_path)
         file_type = file_path.suffix.lower()[1:]  # Remove the dot
+        file_name = file_path.stem.replace("temp_storage\\", "")
         
         result = {
             "original_path": str(file_path),
@@ -353,17 +355,24 @@ class SessionConfig:
                 raise ValueError(f"Unsupported file type: {file_type}")
                 
             # Add file to session configuration
-            self.add_file_path(session_id, str(file_path), file_type)
+            self.add_file_path(session_id, str(file_path), file_type, file_name)
             
             # Generate and store file description
             if processed_path:
                 description = self.get_file_description(processed_path, file_type)
                 config = self.get_session(session_id)
                 if config:
-                    config["file_descriptions"][str(file_path)] = {
-                        "description": description,
-                        "added_at": datetime.utcnow().isoformat()
-                    }
+                    # Update the file entry with description and data
+                    for file_entry in config["files"]:
+                        if file_entry["path"] == str(file_path):
+                            file_entry["description"] = description
+                            if file_type in ["pdf", "jpg", "jpeg", "png", "bmp", "tiff"]:
+                                with open(processed_path, 'r', encoding='utf-8') as f:
+                                    file_entry["file_data"] = f.read()
+                            elif file_type == "csv":
+                                df = pd.read_csv(processed_path)
+                                file_entry["file_data"] = df.to_json(orient='records')
+                            break
                     self.update_context(session_id, config)
             
             return result

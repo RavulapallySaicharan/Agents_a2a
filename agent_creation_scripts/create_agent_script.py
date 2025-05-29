@@ -134,30 +134,29 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
                 print(f"Failed to initialize Azure OpenAI client: {{str(azure_error)}}")
                 raise Exception("Failed to initialize any OpenAI client. Please check your API keys and configurations.")
     
-    def _get_file_content(self, session_id: str, file_name: str) -> str:
-        """Get the content of a file from the session."""
+    def _process_file_data(self, file_data: str, file_type: str) -> Any:
+        """
+        Process file data based on its type.
+        
+        Args:
+            file_data: The file data as string
+            file_type: Type of the file (csv, pdf, etc.)
+            
+        Returns:
+            Processed data in appropriate format
+        """
         try:
-            session_config = self.session_manager.get_session(UUID(session_id))
-            if not session_config:
-                return None
-                
-            # Get the file path from session
-            session = session_config.get_session(UUID(session_id))
-            if not session:
-                return None
-                
-            # Find the file in the session's files
-            file_info = next((f for f in session.get("files", []) if f["path"].split("/")[-1].startswith(file_name)), None)
-            if not file_info:
-                return None
-                
-            # Read the file content
-            file_path = file_info["path"]
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return f.read()
-                
+            if file_type == "csv":
+                # Convert JSON string to DataFrame
+                import pandas as pd
+                import json
+                data = json.loads(file_data)
+                return pd.DataFrame(data)
+            else:
+                # For PDF, images, and other text files, return the text directly
+                return file_data
         except Exception as e:
-            print(f"Error reading file: {{str(e)}}")
+            print(f"Error processing file data: {{str(e)}}")
             return None
     
     def _call_api(self, inputs: Dict[str, Any]) -> str:
@@ -171,11 +170,11 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
             str: API response content
         """
         try:
-            # Get file content if file_name is provided
-            if inputs.get("file_name") and inputs.get("file_name") != "None":
-                file_content = self._get_file_content(inputs.get("session_id"), inputs.get("file_name"))
-                if file_content:
-                    inputs["file_content"] = file_content
+            # Process file data if available
+            if inputs.get("file_data") and inputs.get("file_type"):
+                processed_data = self._process_file_data(inputs["file_data"], inputs["file_type"])
+                if processed_data is not None:
+                    inputs["processed_file_data"] = processed_data
             
             response = requests.post(self.url, json=inputs)
             response.raise_for_status()
@@ -194,16 +193,19 @@ class {agent_name.replace(' ', '')}Agent(A2AServer):
             str: LLM response content
         """
         try:
-            # Get file content if file_name is provided
-            file_content = None
-            if inputs.get("file_name") and inputs.get("file_name") != "None":
-                file_content = self._get_file_content(inputs.get("session_id"), inputs.get("file_name"))
+            # Process file data if available
+            processed_data = None
+            if inputs.get("file_data") and inputs.get("file_type"):
+                processed_data = self._process_file_data(inputs["file_data"], inputs["file_type"])
             
             # Create a prompt based on the agent's goal and inputs
             prompt = f"Goal: {{self.goal}}\\n\\n"
             
-            if file_content:
-                prompt += f"File Content:\\n{{file_content}}\\n\\n"
+            if processed_data is not None:
+                if isinstance(processed_data, pd.DataFrame):
+                    prompt += f"DataFrame Content:\\n{{processed_data.to_string()}}\\n\\n"
+                else:
+                    prompt += f"File Content:\\n{{processed_data}}\\n\\n"
             
             prompt += f"User Input: {{inputs.get('text', '')}}\\n\\n"
             prompt += "Please process these inputs according to the goal."

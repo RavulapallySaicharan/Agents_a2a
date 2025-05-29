@@ -55,7 +55,7 @@ def get_agent_url(port):
     return f"http://localhost:{port}"
 
 
-def create_agent_inputs(message, session_id, conversation_history, file_name):
+def create_agent_inputs(message, session_id, conversation_history, file_name, file_data=None, file_type=None):
     """Collect all required inputs for the selected agent based on its configuration."""
     inputs = {}
     inputs["text"] = message
@@ -68,6 +68,10 @@ def create_agent_inputs(message, session_id, conversation_history, file_name):
             conversation.append({"role": "agent", "content": each.content.text})
     inputs["conversation_history"] = conversation
     inputs["file_name"] = file_name
+    if file_data:
+        inputs["file_data"] = file_data
+    if file_type:
+        inputs["file_type"] = file_type
     return json.dumps(inputs, indent=2)
 
 
@@ -98,7 +102,7 @@ async def upload_file(
         session_config = session_manager.create_session(session_id)
         
         # Create temporary file
-        temp_dir = Path("temp_uploads")
+        temp_dir = Path("temp_storage")
         temp_dir.mkdir(exist_ok=True)
         temp_path = temp_dir / file.filename
         
@@ -172,8 +176,7 @@ async def get_session_info(session_id: UUID) -> Dict[str, Any]:
             "last_updated": session["last_updated"],
             "files": session["files"],
             "dataframes": dataframes,
-            "conversation": conversation,
-            "file_descriptions": session["file_descriptions"]
+            "conversation": conversation
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -254,7 +257,9 @@ async def ask_agent(
         # get the name of the dataframe based on the conversation history and the file_descriptions
         llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
         conversation_history = session_config.get_conversation_history(session_id)
-        file_descriptions = session_config.get_file_descriptions(session_id)
+        session = session_config.get_session(session_id)
+        files = session.get("files", [])
+        file_descriptions = {file_name: file_info["description"] for file_info in files for file_name, file_info in file_info.items() if file_info["description"]}
         # get the name of the dataframe based on the conversation history and the file_descriptions
         prompt = f"""You are an intelligent assistant that decides whether a file is needed to answer a user's question based on the conversation history and uploaded file descriptions.
 
@@ -289,8 +294,17 @@ async def ask_agent(
         else:
             raise HTTPException(status_code=400, detail="Invalid agent flag")
         
+        # Get file data and type if file_name exists
+        file_data = None
+        file_type = None
+        if file_name != "None":
+            # for file_info in files:
+            if file_name in files.keys():
+                file_data = files[file_name]["file_data"]
+                file_type = files[file_name]["type"]
+
         # Collect all required inputs for the agent
-        agent_inputs = create_agent_inputs(message, session_id, conversation_history, file_name)
+        agent_inputs = create_agent_inputs(message, session_id, conversation_history, file_name, file_data, file_type)
 
         # Create a message with the formatted inputs
         user_message = Message(

@@ -56,10 +56,12 @@ class SessionManager:
             for session_id, session_config in self._sessions.items():
                 session = session_config.get_session(session_id)
                 if session:
+                    # Count unique files (each file is a dict with one key)
+                    file_count = len(session.get("files", []))
                     sessions_info[str(session_id)] = {
                         "created_at": session["created_at"],
                         "last_updated": session["last_updated"],
-                        "file_count": len(session.get("files", [])),
+                        "file_count": file_count,
                         "dataframe_count": len(session.get("dataframes", {})),
                         "message_count": len(session.get("conversation", {}).get("messages", []))
                     }
