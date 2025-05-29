@@ -298,10 +298,12 @@ async def ask_agent(
         file_data = None
         file_type = None
         if file_name != "None":
-            # for file_info in files:
-            if file_name in files.keys():
-                file_data = files[file_name]["file_data"]
-                file_type = files[file_name]["type"]
+            # Find the file in the list of files
+            for file_entry in files:
+                if file_name in file_entry:
+                    file_data = file_entry[file_name]["file_data"]
+                    file_type = file_entry[file_name]["type"]
+                    break
 
         # Collect all required inputs for the agent
         agent_inputs = create_agent_inputs(message, session_id, conversation_history, file_name, file_data, file_type)
