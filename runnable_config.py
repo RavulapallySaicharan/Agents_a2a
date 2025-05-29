@@ -76,7 +76,7 @@ class SessionConfig:
         with open(config_file, "w") as f:
             json.dump(config, f, indent=2)
             
-    def add_file_path(self, session_id: UUID, file_path: str, file_type: str, file_name: str) -> None:
+    def add_file_path(self, session_id: UUID, file_path: str, file_type: str, file_name: str, file_data: str, file_description: str) -> None:
         """Add a file path to the session configuration."""
         config_file = self.get_session_dir(session_id) / "config.json"
         if not config_file.exists():
@@ -89,8 +89,8 @@ class SessionConfig:
             "path": file_path,
             "type": file_type,
             "added_at": datetime.utcnow().isoformat(),
-            "description": None,
-            "file_data": None
+            "description": file_description,
+            "file_data": file_data
         }})
         config["last_updated"] = datetime.utcnow().isoformat()
         
@@ -353,27 +353,21 @@ class SessionConfig:
                 processed_path = str(self.get_session_dir(session_id) / f"{df_name}.csv")
             else:
                 raise ValueError(f"Unsupported file type: {file_type}")
-                
-            # Add file to session configuration
-            self.add_file_path(session_id, str(file_path), file_type, file_name)
             
             # Generate and store file description
             if processed_path:
-                description = self.get_file_description(processed_path, file_type)
-                config = self.get_session(session_id)
-                if config:
-                    # Update the file entry with description and data
-                    for file_entry in config["files"]:
-                        if file_entry["path"] == str(file_path):
-                            file_entry["description"] = description
-                            if file_type in ["pdf", "jpg", "jpeg", "png", "bmp", "tiff"]:
-                                with open(processed_path, 'r', encoding='utf-8') as f:
-                                    file_entry["file_data"] = f.read()
-                            elif file_type == "csv":
-                                df = pd.read_csv(processed_path)
-                                file_entry["file_data"] = df.to_json(orient='records')
-                            break
-                    self.update_context(session_id, config)
+                file_description = self.get_file_description(processed_path, file_type)
+
+                if file_type in ["pdf", "jpg", "jpeg", "png", "bmp", "tiff"]:
+                    with open(processed_path, 'r', encoding='utf-8') as f:
+                        file_data = f.read()
+                elif file_type == "csv":
+                    df = pd.read_csv(processed_path)
+                    file_data = df.to_json(orient='records')
+
+
+            # Add file to session configuration
+            self.add_file_path(session_id, str(file_path), file_type, file_name, file_data, file_description)
             
             return result
             
