@@ -4,6 +4,8 @@ import logging
 import threading
 import time
 import os
+import signal
+import sys
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
@@ -84,7 +86,35 @@ def watch_config():
         observer.stop()
     observer.join()
 
+def shutdown_agents():
+    logging.info("Shutting down all running agents...")
+    for file_path, process in running_agents.items():
+        try:
+            logging.info(f"Terminating agent: {file_path}")
+            process.terminate()
+            process.wait(timeout=5)  # Wait up to 5 seconds for graceful shutdown
+        except subprocess.TimeoutExpired:
+            logging.warning(f"Force killing agent: {file_path}")
+            process.kill()
+        except Exception as e:
+            logging.error(f"Error shutting down agent {file_path}: {e}")
+    running_agents.clear()
+    logging.info("All agents have been shut down")
+
+def signal_handler(signum, frame):
+    logging.info(f"Received signal {signum}")
+    shutdown_agents()
+    sys.exit(0)
+
 if __name__ == "__main__":
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
     agents = load_config()
     launch_all_agents(agents)
-    watch_config()
+    try:
+        watch_config()
+    except KeyboardInterrupt:
+        logging.info("Received keyboard interrupt")
+        shutdown_agents()
