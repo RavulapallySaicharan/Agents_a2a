@@ -11,6 +11,7 @@ from watchdog.events import FileSystemEventHandler
 
 CONFIG_PATH = "agents/config.json"
 LOG_FILE = "agent_runner.log"
+STOP_FILE = "agents/stop_signal.txt"  # File to signal stop
 
 # Configure logging
 logging.basicConfig(
@@ -72,19 +73,34 @@ class ConfigChangeHandler(FileSystemEventHandler):
             except Exception as e:
                 logging.error(f"Failed to reload config: {e}")
 
+def check_stop_signal():
+    """Check if stop signal file exists and remove it if found"""
+    if os.path.exists(STOP_FILE):
+        try:
+            os.remove(STOP_FILE)
+            return True
+        except Exception as e:
+            logging.error(f"Error removing stop signal file: {e}")
+    return False
+
 def watch_config():
     observer = Observer()
     handler = ConfigChangeHandler()
-    # Watch the agents directory instead of root
     observer.schedule(handler, path="agents", recursive=False)
     observer.start()
     logging.info(f"Started watchdog to monitor {CONFIG_PATH}")
     try:
         while True:
+            if check_stop_signal():
+                logging.info("Stop signal detected")
+                shutdown_agents()
+                break
             time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()
-    observer.join()
+    finally:
+        observer.stop()
+        observer.join()
 
 def shutdown_agents():
     logging.info("Shutting down all running agents...")
